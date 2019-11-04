@@ -1,12 +1,10 @@
 # Analysis of cluster data
-# Aug 13/2019
+# Nov 1/2019
 
 require(tidyverse)
 source("pairs_extensions.R")
 source("treatment_apply.R")
 verbose = F
-loadcsv = F
-# TEST EFFECT OF SUBSAMPLING NUMBER OF RUNS (SEE WHETHER SAMPLE BIG ENOUGH)
 
 # Load parameter vector and data -----
 
@@ -16,13 +14,14 @@ datatomodel2 = read_csv("Data/datatomodel2.csv")
 
 # Load (Cluster) data -----
 
+# The following .rds file was created by using the function "rbind" to join individual model outputs
 data2 <- readRDS("Data/fullmodeloutput_12Aug2019.rds")
 
 # get parameter values
 par1 <- data2 %>% select(PARS, Run) %>% filter(PARS!=-2) %>% 
   mutate(NPAR = rep(c(nparams, "StableRound"), length(unique(data2$Run))))
 
-# check to see when the results are stable: 1 = 500, 2= +1500, 3= +3000
+# check to see when the spin-up procedure ended: 1 = after 500 years, 2= 2000, 3= 5500
 par1 %>% 
   filter(NPAR == "StableRound") %>% 
   select(PARS) %>% 
@@ -50,14 +49,23 @@ data3 <- data2 %>% select(-PARS, -YSTABLE, -Run2) %>% filter(time!=-1) %>% renam
 # based on van der Vaart et al. 2015
 
 useexptdata = T
+useextradata = T
 
 if(useexptdata){
-  data4 = data3 %>% left_join(
-    data3 %>% group_by(Treatment, StateVar) %>% 
-      summarize(Msd = mad(Model))) 
+  if(useextradata){
+    data4 = data3 %>% left_join(
+      data3 %>% group_by(Expt,StateVar) %>% 
+        summarize(Msd = mad(Model))) 
+  }else{
+    data4 = data3 %>% left_join(
+      data3 %>% group_by(Expt,StateVar) %>% 
+        summarize(Msd = mad(Model)))%>%
+      filter(Treatment %in% c("N", "H", "W",  "HW"))
+    }
+  
 }else{
   data4 = data3 %>% left_join(
-    data3 %>% group_by(Treatment, StateVar) %>% 
+    data3 %>% group_by(Expt,StateVar) %>% 
       summarize(Msd = mad(Model)))%>%
     filter(Treatment %in% c("RmH", "RmW", "Rt",  "RtH"))
 }
@@ -73,8 +81,11 @@ datatomodel3 = datatomodel2 %>%
             upBio = quantile(Biomass, 0.75)
             ) %>% ungroup() %>%
   filter(!(Treatment %in% c("RmH", "RtH") & StateVar=="M")
-           )
+           ) %>%
+  # Get rid of experimental time before model "treatments" are imposed (i.e before 290 days)
+  filter(time != 114)
 
+  
 (Nobs = length(unique(data4$Run)))
 (cut = (50/Nobs))
 
@@ -86,6 +97,22 @@ errord = datatomodel3 %>% left_join(data4) %>%
   mutate(Best = ifelse(fit < quantile(fit, cut), "Yes", "No"))
 
 table(errord %>% select(Best))
+
+# Save ID of selected Runs 
+errord %>% filter(Best == "Yes") %>% write_csv(paste0("Data/selected_runs_", Sys.Date(),".csv"))
+
+
+if(verbose){
+  # check for extinctions (None observed, unless expected (i.e. no herbivores in N or W treatments))
+  data4 %>% as_tibble() %>%
+    left_join(errord %>% select(Run, Best)) %>% filter(Best=="Yes") %>% # pick best runs
+    select(-Msd, -Best) %>%
+    filter(StateVar %in% c("H", "W")) %>%
+    group_by(Treatment, Run, StateVar) %>%
+    summarize(Model = prod(Model)) %>% # use product to search for zeros in each vector
+    spread(key = Treatment, value=Model) %>% View()
+}
+
 
 # calculate R2 by treatment using the average model runs of best models
 
@@ -524,45 +551,131 @@ plotdata2 = plotdata %>%
            StateVar %in% c("L", "M", "N", "P", "R", "S", "U")) %>%
   mutate(Year = time/365)
 
-meandata2 =plotdata2 %>% group_by(Year, StateVar, Effect) %>%
+meandata2 =plotdata2 %>% group_by(time, StateVar, Effect) %>%
   summarize(lower = quantile(Size, probs = 0.945, na.rm=T),
             upper = quantile(Size, probs = 0.055, na.rm=T),
-            Size = median(Size, na.rm=T))
+            Size = median(Size, na.rm=T)) %>%
+  mutate(Year = time/365)
 
-p1 = plotdata2 %>% filter(Effect != "IE") %>%
+plotexpdata2 = datatomodel3 %>% 
+  select(time, Treatment, StateVar, mBio) %>%
+  spread(key = Treatment, value=mBio) %>%
+  mutate(EOH1 = (H-N),
+         EOW1 = (W-N),
+         IE = (HW-N - (H-N + W-N))/N,
+         EOW2 = (Rt - RmW),
+         EOH2 = (RtH - RmH)) %>%
+  select(time, StateVar, EOH1:EOH2) %>%
+  gather(-time, -StateVar, key=Effect, value=Size) %>%
+  filter(!is.na(Size)) %>% 
+  filter(Effect %in% c("EOH1", "EOW1", "IE") &
+           StateVar %in% c("L", "M", "N", "P", "R", "S", "U")) %>%
+  mutate(Year = time/365)
+
+
+p1 = plotdata2 %>% filter(Effect == "EOH1") %>%
   ggplot(aes(x=Year, y=Size)) +
   geom_line(aes(group=Run), color="grey", alpha=0.5) + 
-  geom_pointrange(data= meandata2 %>% filter(Effect != "IE"), color="red",
-                  aes(ymin=lower, ymax=upper)) +
-  geom_line(data= meandata2 %>% filter(Effect != "IE"), color="black") +
+  geom_line(data= meandata2 %>% filter(Effect == "EOH1"), color="black") +
+  geom_point(data= plotexpdata2 %>% filter(Effect == "EOH1"), color="red") +
   facet_grid(StateVar~Effect, scales="free", 
              labeller=labeller(Effect = variable_names_effect,
                                StateVar = variable_names)) + 
   theme_classic()
 
-p2 = plotdata2 %>% filter(Effect == "IE") %>%
-  ggplot(aes(x=Year, y=Size)) + ylab("") + 
+p2 = plotdata2 %>% filter(Effect == "EOW1") %>%
+  ggplot(aes(x=Year, y=Size)) +
   geom_line(aes(group=Run), color="grey", alpha=0.5) + 
-  geom_pointrange(data= meandata2 %>% filter(Effect == "IE"), color="red",
-                  aes(ymin=lower, ymax=upper)) +
-  geom_line(data= meandata2 %>% filter(Effect == "IE"), color="black") +
+  geom_line(data= meandata2 %>% filter(Effect == "EOW1"), color="black") +
+  geom_point(data= plotexpdata2 %>% filter(Effect == "EOW1"), color="red") +
   facet_grid(StateVar~Effect, scales="free", 
              labeller=labeller(Effect = variable_names_effect,
                                StateVar = variable_names)) + 
-  theme_classic() + 
-  geom_point(data = 
-               data.frame(Year=rep(1, 3),
-                          Size = c(-2e-4, -2e-4, 1e-4),
-                          StateVar = c("N", "S", "R")),
-             color="blue", shape="*", size=10
-               )
+  theme_classic()
+
+p3 = plotdata2 %>% filter(Effect == "IE") %>%
+  ggplot(aes(x=Year, y=Size)) + ylab("") + 
+  geom_line(aes(group=Run), color="grey", alpha=0.5) + 
+  geom_line(data= meandata2 %>% filter(Effect == "IE"), color="black") +
+  geom_point(data= plotexpdata2 %>% filter(Effect == "IE"), color="red") +
+  facet_grid(StateVar~Effect, scales="free", 
+             labeller=labeller(Effect = variable_names_effect,
+                               StateVar = variable_names)) + 
+  theme_classic()
 
 
 
 png(paste0("plots_from_",Sys.Date(),"/","clean_interaction_effect_",Sys.Date(),".png"),
     width=8, height=8, units="in", res=300)
-ggpubr::ggarrange(p1, p2, widths=c(2.5,1), labels="auto", font.label = list(face="plain"))
+ggpubr::ggarrange(p1, p2,p3, ncol=3, labels="auto", font.label = list(face="plain"))
 dev.off()
+
+
+# New plot of raw data over time 
+
+rawplot1 = data2 %>% as_tibble() %>% select(-PARS, -YSTABLE) %>% 
+  rename(TreatmentN = Treatment) %>%
+  left_join(
+    data.frame(TreatmentN = seq(0,7,1),
+               Treatment = c("N", "W", "H", "HW", "RmW", "Rt", "RmH",
+                             "RtH"))
+  ) %>% select(-TreatmentN) %>% 
+  left_join(errord %>% select(Run, Best)) %>%
+  filter(Best=="Yes") %>% 
+  select(-Best, -Expt) %>%
+  gather(-time, -Treatment, -Run, key=StateVar, value=Size)
+
+treatment_names <- c(
+  "N" = "None" ,
+  "H" = "Grasshoppers",
+  "W" = "Earthworms",
+  "HW" = "Grasshoppers and Earthworms"
+)
+
+png(paste0("plots_from_",Sys.Date(),"/","raw_temporal_",Sys.Date(),".png"),
+    width=8, height=8, units="in", res=300)
+
+rawplot1 %>% 
+  mutate(Year = (time/365)-1) %>%
+  filter(Year >=1) %>%
+  filter(Treatment %in% c("N", "W", "H", "HW")) %>%
+  filter(StateVar %in% c("H","W", "M", "N", "P")) %>%
+  ggplot(aes(x=Year, y=Size)) +
+  geom_line(aes(group=Run), color="grey", alpha=0.5) +
+  geom_pointrange(data = ppdata2 %>%
+                    mutate(Year = Year - 1) %>%
+                    filter(Year >=1) %>%
+                    filter(Treatment %in% c("N", "W", "H", "HW")) %>%
+                    filter(StateVar %in% c("H","W", "M", "N", "P")),
+                  aes(x=Year, y=mBio, ymin= lowBio, ymax = upBio), color = "red") +
+  facet_grid(StateVar~Treatment, scales="free", 
+             labeller=labeller(Treatment = treatment_names,
+                               StateVar = variable_names)) +
+  theme_classic()
+
+dev.off() 
+
+png(paste0("plots_from_",Sys.Date(),"/","raw_temporal_entire",Sys.Date(),".png"),
+    width=8, height=8, units="in", res=300)
+
+rawplot1 %>% 
+  mutate(Year = (time/365)-1) %>%
+  filter(Treatment %in% c("N", "W", "H", "HW")) %>%
+  filter(StateVar %in% c("H","W", "M", "N", "P")) %>%
+  ggplot(aes(x=Year, y=Size)) +
+  geom_line(aes(group=Run), color="grey", alpha=0.5) +
+  geom_pointrange(data = ppdata2 %>%
+                    mutate(Year = Year - 1) %>%
+                    filter(Treatment %in% c("N", "W", "H", "HW")) %>%
+                    filter(StateVar %in% c("H","W", "M", "N", "P")),
+                  aes(x=Year, y=mBio, ymin= lowBio, ymax = upBio), color = "red") +
+  facet_grid(StateVar~Treatment, scales="free", 
+             labeller=labeller(Treatment = treatment_names,
+                               StateVar = variable_names)) +
+  theme_classic()
+
+dev.off() 
+  
 
 # Then show the measurement error associated with each pool,
 # which is the residual variance in models after all variables considered

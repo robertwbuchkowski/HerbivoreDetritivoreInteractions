@@ -429,54 +429,79 @@ anova(ch4_NTmm18_1,ch4_NTmm18)
 
 stargazer(ch4_PBm17_1,ch4_PBm18_1,ch4_SIRm17,ch4_SIRm18,ch4_NTsm17,ch4_NTsm18,ch4_NTmm17,ch4_NTmm18,star.cutoffs = c(0.05, 0.01, 0.001), column.labels = rep(c("2017", "2018"),4))
 
-jpeg(paste ("Regressions_CH4_",format(Sys.time(), "%Y-%m-%d"), ".jpeg"), units="in", width=7, height=7, res=600)
-colgrad = c("black", "grey50", "grey60", "grey70", "grey80")
-par(mfrow=c(2,2), omi=c(0.5,0,0,0), mar=c(2,4.5,2,2))
-plot(PlantBiomass~WORM_N, data=pbdata, pch=ifelse(Year=="17", 19,17), col=alpha(colgrad[(HopperN+1)],0.6), xlab="", ylab="Plant Biomass (g)")
-ee2 = as.data.frame(Effect(c("WORM_N","HopperN"),ch4_PBm17_1))
-points(fit~WORM_N, data=subset(ee2, HopperN==0), type="l", col="white", lwd=5)
-points(fit~WORM_N, data=subset(ee2, HopperN==0), type="l", col="blue", lwd=3)
-ee2 = as.data.frame(Effect(c("HopperN"),ch4_PBm18_1))
-arrows(2,subset(ee2, HopperN==0)$fit,2,subset(ee2, HopperN==3)$fit, col="white", lwd=5, lty=1, length=0.1)
-arrows(2,subset(ee2, HopperN==0)$fit,2,subset(ee2, HopperN==3)$fit, col="red", lwd=3, lty=1, length=0.1)
-ee2 = as.data.frame(Effect(c("WORM_N","HopperN"),ch4_PBm18_1))
-points(fit~WORM_N, data=subset(ee2, HopperN==0), type="l", col="white", lwd=5)
-points(fit~WORM_N, data=subset(ee2, HopperN==0), type="l", col="red", lwd=3)
+jpeg(paste ("Figure3_",format(Sys.time(), "%Y-%m-%d"), ".jpeg"), units="in", width=6, height=8, res=600)
+
+par(mfrow=c(4,2), omi=c(0.5,0,0,0), mar=c(2,4.5,2,1))
+# ---- Panel A ----- #
+plot(PlantBiomass~WORM_N, data=pbdata, pch=ifelse(Year=="17", 19,17),
+     col=ifelse(Year=="17", "blue","orange"), xlab="", ylab="Plant Biomass (g)")
+ee2 = as.data.frame(Effect(c("WORM_N"),ch4_PBm17_1))
+points(fit~WORM_N, data=ee2, type="l", col="white", lwd=5)
+points(fit~WORM_N, data=ee2, type="l", col="darkblue", lwd=3)
+ee2 = as.data.frame(Effect("WORM_N",ch4_PBm18_1))
+points(fit~WORM_N, data=ee2, type="l", col="white", lwd=5, lty=2)
+points(fit~WORM_N, data=ee2, type="l", col="darkorange", lwd=3, lty=2)
+legend("topleft", legend="a", bty="n")
+legend("topright", legend=c("2017", "2018"), col=c("blue", "orange"), bty="n", pch=c(19,17), title = "Year", lty=c(1,2))
+
+# ---- Panel B ----- #
+plot(PlantBiomass~jitter(HopperN), data=pbdata, pch=ifelse(Year=="17", 19,17),
+     col=ifelse(Year=="17", "blue","orange"), xlab="", ylab="")
+ee2 = as.data.frame(Effect("HopperN",ch4_PBm18_1))
+points(fit~HopperN, data=ee2, type="l", col="white", lwd=5, lty=2)
+points(fit~HopperN, data=ee2, type="l", col="darkorange", lwd=3, lty=2)
+legend("topleft", legend="b", bty="n")
+
+# ---- Panel C ----- #
+plot(SIR~WORM_N, data=pbdata, pch=ifelse(Year=="17", 19,17), 
+     col=ifelse(Year=="17", "blue","orange"), xlab="", ylab=expression(SIR~(g[C]~g[DMES]^-1~hr^-1)))
 legend("topleft", legend="c", bty="n")
 
-plot(SIR~WORM_N, data=pbdata, pch=ifelse(Year=="17", 19,17), col=alpha(colgrad[(HopperN+1)],0.6), xlab="", ylab=expression(SIR~(g[C]~g[DMES]^-1~hr^-1)))
+# ---- Panel D ----- #
+plot(SIR~jitter(HopperN), data=pbdata, pch=ifelse(Year=="17", 19,17), 
+     col=ifelse(Year=="17", "blue","orange"), xlab="", ylab="")
 ee2 = as.data.frame(Effect(c("HopperN"),ch4_SIRm17))
-arrows(11,subset(ee2, HopperN==0)$fit,11,subset(ee2, HopperN==3)$fit, col="white", lwd=5, lty=1, length=0.1)
-arrows(11,subset(ee2, HopperN==0)$fit,11,subset(ee2, HopperN==3)$fit, col="blue", lwd=3, lty=1, length=0.1)
+points(fit~HopperN, data=ee2, type="l", col="white", lwd=5, lty=1)
+points(fit~HopperN, data=ee2, type="l", col="darkblue", lwd=3, lty=1)
 ee2 = as.data.frame(Effect(c("HopperN"),ch4_SIRm18))
-arrows(2,subset(ee2, HopperN==0)$fit,2,subset(ee2, HopperN==3)$fit, col="white", lwd=5, lty=1, length=0.1)
-arrows(2,subset(ee2, HopperN==0)$fit,2,subset(ee2, HopperN==3)$fit, col="red", lwd=3, lty=1, length=0.1)
+points(fit~HopperN, data=ee2, type="l", col="white", lwd=5, lty=2)
+points(fit~HopperN, data=ee2, type="l", col="darkorange", lwd=3, lty=2)
 legend("topleft", legend="d", bty="n")
 
-plot(NTs~WORM_N, data=pbdata, pch=ifelse(Year=="17", 19,17), col=alpha(colgrad[(HopperN+1)],0.6), xlab="", ylab=expression(Field~Mineralization~(mu*g[N]~cm^-2~day^-1)))
-ee2 = as.data.frame(Effect(c("WORM_N","HopperN"),ch4_NTsm17))
-points(fit~WORM_N, data=subset(ee2, HopperN==0), type="l", col="white", lwd=5)
-points(fit~WORM_N, data=subset(ee2, HopperN==0), type="l", col="blue", lwd=3)
-
-ee2 = as.data.frame(Effect(c("HopperN"),ch4_NTsm17))
-arrows(11,subset(ee2, HopperN==0)$fit,11,subset(ee2, HopperN==3)$fit, col="white", lwd=5, lty=1, length=0.1)
-arrows(11,subset(ee2, HopperN==0)$fit,11,subset(ee2, HopperN==3)$fit, col="blue", lwd=3, lty=1, length=0.1)
-
-ee2 = as.data.frame(Effect(c("WORM_N","HopperN"),ch4_NTsm18))
-points(fit~WORM_N, data=subset(ee2, HopperN==0), type="l", col="white", lwd=5, lty=1)
-points(fit~WORM_N, data=subset(ee2, HopperN==0), type="l", col="red", lwd=3, lty=1)
-# points(fit~WORM_N, data=subset(ee2, HopperN==2.2), type="l", col="grey60", lwd=3, lty=2)
-legend("topright", legend=c("`17", "`18"), col=c("blue", "red"), bty="n", pch=c(19,17), title = "Year", lty=c(1,1))
+# ---- Panel E ----- #
+plot(NTs~WORM_N, data=pbdata, pch=ifelse(Year=="17", 19,17), 
+     col= ifelse(Year=="17", "blue","orange"), xlab="", ylab=expression(Field~Mineralization~(mu*g[N]~cm^-2~day^-1)))
+ee2 = as.data.frame(Effect("WORM_N",ch4_NTsm17))
+points(fit~WORM_N, data=ee2, type="l", col="white", lwd=5)
+points(fit~WORM_N, data=ee2, type="l", col="darkblue", lwd=3)
+ee2 = as.data.frame(Effect("WORM_N",ch4_NTsm18))
+points(fit~WORM_N, data=ee2, type="l", col="white", lwd=5, lty=2)
+points(fit~WORM_N, data=ee2, type="l", col="darkorange", lwd=3, lty=2)
 legend("topleft", legend="e", bty="n")
 
-plot(NTm~WORM_N, data=pbdata, pch=ifelse(Year=="17", 19,17), col=alpha(colgrad[(HopperN+1)],0.6), xlab="", ylab=expression(Lab~Mineralization~(mu*g[N]~g[DMES]^-1~day^-1)))
-ee2 = as.data.frame(Effect(c("WORM_N","HopperN"),ch4_NTmm17))
-points(fit~WORM_N, data=subset(ee2, HopperN==0), type="l", col="white", lwd=5)
-points(fit~WORM_N, data=subset(ee2, HopperN==0), type="l", col="blue", lwd=3)
-
-legend("topright", legend=seq(0,4), col=alpha(colgrad, 0.6), bty="n", pch=15, title="Hopper (#)")
+# ---- Panel F ----- #
+plot(NTs~jitter(HopperN), data=pbdata, pch=ifelse(Year=="17", 19,17), 
+     col= ifelse(Year=="17", "blue","orange"), xlab="", ylab="")
+ee2 = as.data.frame(Effect(c("HopperN"),ch4_NTsm17))
+points(fit~HopperN, data=ee2, type="l", col="white", lwd=5)
+points(fit~HopperN, data=ee2, type="l", col="darkblue", lwd=3)
 legend("topleft", legend="f", bty="n")
-mtext(text="Earthworm (#)", side=1, outer=T)
+
+# ---- Panel G ----- #
+plot(NTm~WORM_N, data=pbdata, pch=ifelse(Year=="17", 19,17), 
+     col= ifelse(Year=="17", "blue","orange"), xlab="", ylab=expression(Lab~Mineralization~(mu*g[N]~g[DMES]^-1~day^-1)))
+ee2 = as.data.frame(Effect("WORM_N",ch4_NTmm17))
+points(fit~WORM_N, data=ee2, type="l", col="white", lwd=5)
+points(fit~WORM_N, data=ee2, type="l", col="darkblue", lwd=3)
+legend("topleft", legend="g", bty="n")
+
+# ---- Panel H ----- #
+plot(NTm~jitter(HopperN), data=pbdata, pch=ifelse(Year=="17", 19,17), 
+     col= ifelse(Year=="17", "blue","orange"), xlab="", ylab="")
+legend("topleft", legend="h", bty="n")
+
+mtext(text="Earthworm (#)", side=1, outer=T, adj=0.25, line=1)
+mtext(text="Grasshopper (#)", side=1, outer=T, adj=0.85, line=1)
 dev.off()
 
 # Test models on a subset of the data of high quality ---------------------
