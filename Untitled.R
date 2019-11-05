@@ -41,40 +41,40 @@ Buchkowski2019 <-function(t, y,pars){
     mfr = (V0*Vlm*L*M/(K0*Klm + M))/((V0*Vsm*S*M/(K0*Ksm + M)) + V0*Vlm*L*M/(Klm + M))
     
     dL = tp*P + tw*W*W + th*H*H + # litter inputs from dead bodies
-      (1-a_hp)*A_W*Vhp*H*P/(Khp + N) - # sloppy herbivore feeding/ urine loss
-      V0*Vlm*L*M/(K0*Klm + M) - A_W*Vlw*L*W/(Klw + L) - # litter consumed by worms and microbes
+      (1-a_hp)*A_W*Vhp*H*P - # sloppy herbivore feeding/ urine loss
+      V0*Vlm*L*M/(K0*Klm + M) - A_W*Vlw*L*W - # litter consumed by worms and microbes
     q2*L
       
     dM = a_m*(V0*Vlm*L*M/(K0*Klm + M) + V0*Vsm*S*M/(K0*Ksm + M)) - # microbes eat litter and soil
-      A_W*Vlw*mfr*M*W/(Klw + L) - A_W*Vsw*(1-mfr)*M*W/(Ksw + S) - # worms eat microbes in litter and soil
+      A_W*Vlw*mfr*M*W - A_W*Vsw*(1-mfr)*M*W - # worms eat microbes in litter and soil
       tm*M # microbes die
     
-    dW = a_wl*(A_W*Vlw*L*W/(Klw + L)) + # worms eat litter
-      A_W*Vsw*S*W/(Ksw + S) + # worms eat soil (unassimlated soil stays put)
-      A_W*Vlw*mfr*M*W/(Klw + L) + A_W*Vsw*(1-mfr)*M*W/(Ksw + S) - # worm eat microbes (unassimulated microbes survive gut passage)
+    dW = a_wl*(A_W*Vlw*L*W) + # worms eat litter
+      A_W*Vsw*S*W + # worms eat soil (unassimlated soil stays put)
+      A_W*Vlw*mfr*M*W + A_W*Vsw*(1-mfr)*M*W - # worm eat microbes (unassimulated microbes survive gut passage)
       tw*W*W # worms die
     
     dN = IN - q*N - # system gains and losses
       fi*N + fo*S + # exchange with SOM and IORG
       (1-a_m)*(V0*Vlm*L*M/(K0*Klm + M) + V0*Vsm*S*M/(K0*Ksm + M)) - # microbial mineralization
-      A_P*Vnp*N*P/(Knp + N) # plant uptake of nitrogen 
+      A_P*Vnp*N*P # plant uptake of nitrogen 
     
     dS = tm*M - # input from dead microbes
       V0*Vsm*S*M/(K0*Ksm + M) - # loss to microbes
-      A_W*Vsw*S*W/(Ksw + S) + # loss to worms
-      (1-a_wl)*(Vlw*L*W/(Klw + L)) + # unassimulated worm faeces
+      A_W*Vsw*S*W + # loss to worms
+      (1-a_wl)*(Vlw*L*W) + # unassimulated worm faeces
       fi*N - fo*S # exchange with IORG
     
-    dP = A_P*Vnp*N*P/(Knp + N) - # nitrogen gain
+    dP = A_P*Vnp*N*P - # nitrogen gain
       tp*P - # density-dependent death
-      A_W*Vhp*H*P/(Khp + N) # herbivory
+      A_W*Vhp*H*P # herbivory
     
-    dP2 = A_P*Vnp*1.5*N*P2/(Knp + N) - # nitrogen gain
+    dP2 = A_P*Vnp*1.5*N*P2 - # nitrogen gain
       tp*P2 - # density-dependent death
-      A_W*Vhp*2*H*P2/(Khp + N) # herbivory
+      A_W*Vhp*2*H*P2 # herbivory
     
-    dH = a_hp*A_W*Vhp*H*P/(Khp + N) + # herbivory normal plant
-      a_hp*A_W*Vhp*H*P2/(Khp + N) - # herbivory second plant
+    dH = a_hp*A_W*Vhp*H*P + # herbivory normal plant
+      a_hp*A_W*Vhp*H*P2 - # herbivory second plant
       th*H*H # death
     
     return(list(c(dL, dM, dW, dN, dS, dP, dP2, dH)))
@@ -88,13 +88,9 @@ params<- c(Vlm = 0.025/414.4523,
            Vsm = 0.011/414.4523,
            Ksm = 2500/25.83898,
            Vlw = 0.0013/0.8026427,
-           Klw = 30,
            Vsw = 0.01/0.8026427,
-           Ksw = 100,
            Vnp = 1244.671,
-           Knp = 1,
            Vhp = 0.01/0.8026427,
-           Khp = 5,
            a_hp = 0.5,
            a_m = 0.50,
            a_wl = 0.3,
@@ -130,29 +126,18 @@ out0_2 <- ode(y = yint_base2, times = 1:1000, parms = params, func = Buchkowski2
 
 (runout0_2 <- runsteady(y = yint_base2, parms = params, func = Buchkowski2019))
 
-fitparams <- function(ptf, input){
 
-  ptf2 = c(exp(ptf), AAT = 1)
-  
-  # run steady works better than stode!
-  a <- runsteady(y = input, parms = ptf2, func = Buchkowski2019)$y
-  
-  Wt = (input-a)/input
-  
-  
-  
-  return(sum(Wt^2, na.rm= T))
-}
-
-lparams = log(params[1:24])
-nparams = params[25]
+lparams = log(params[1:20])
+nparams = params[21]
 
 fitparams <- function(ptf, pntf, input){
   
   ptf2 = c(exp(ptf), pntf)
   
   # run steady works better than stode!
-  a <- runsteady(y = input, parms = ptf2, func = Buchkowski2019)$y
+  a <- runsteady(y = input, parms = ptf2, func = Buchkowski2019, hmax = 1)$y
+  
+  # hmax = 1 was not enough.
   
   Wt = (input-a)/input
   
@@ -200,6 +185,7 @@ rm(timelist2_expt,timelist2)
 # Fit the model with 1 plant species -----
 
 (fit1 <- optim(par = lparams, fn = fitparams, pntf = nparams, input = yint_base1, control = list(maxit = 5000)))
+
 
 if(fit1$convergence!=0){print("WARNING!!!!!! DID NOT CONVERGE")}
 
