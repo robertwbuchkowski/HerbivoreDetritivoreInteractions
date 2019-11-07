@@ -5,9 +5,9 @@ library(tidyverse)
 
 verbose = F
 
+datatomodel2 = read_csv("Data/datatomodel2.csv")
+
 if(verbose){
-  datatomodel2 = read_csv("Data/datatomodel2.csv")
-  
   datatomodel2 %>%
     ggplot(aes(x=time, y=Biomass)) + geom_point() + 
     facet_grid(StateVar~Treatment, scales="free")
