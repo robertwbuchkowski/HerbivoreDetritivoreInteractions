@@ -2,6 +2,8 @@
 
 # meant to be run in-line with in the script "Statistical_Analysis.R"
 
+verbose = F # set to true if running dynamically to see analysis at the bottom
+
 # ---- Set up sampling times ----
 hopsamp = seq(0,3,1)*365 + 266
 soilsamp = c(seq(1,3,1)*365 + 170, seq(0,3,1)*365 + 300)
@@ -173,110 +175,294 @@ rm(RDAdata_1)
 RDAWdata = percentcoverWE %>% select(-Date, - Date2, -Treatment) %>% gather(-Plot, -Year, key=Species, value=Cover) %>% group_by(Plot, Year, Species) %>% summarize(Cover= mean(Cover)) %>% ungroup() %>% spread(key=Species, value=Cover) %>%
   right_join(pbdataWE)
 
+
+
+
+
 # ---- Convert data to the model formats -----
+
+# Identify the correct treatments in model syntax
 CH4treatments = pbdata %>% 
   mutate(Treatment = ifelse(Addition=="Add", 
                             ifelse(HopperAdd=="Add", "HW","W"), 
                             ifelse(HopperAdd=="Add", "H","N"))) %>% 
-  select(Plot, Treatment, Addition, HopperAdd) %>% distinct()
+  select(Plot, Treatment) %>% distinct()
 
 datatomodel = bind_rows(
+  
+  # Start with the earthworm data
   wormdata %>% select(Plot, SeasonYear, Worm_Wt) %>% 
     left_join(wormavgsample) %>% #add in model standardized dates
-    mutate(Biomass = Worm_Wt*0.1/0.212264) %>% select(-Worm_Wt, -SeasonYear) %>% # convert worm weight to g[N]~m^-2
-    left_join(CH4treatments) %>% select(-Plot) %>% # add the treatments
-    mutate(StateVar = "W"),
-  
-  
-  plotdata %>% select(Plot, PlantBiomass16,PlantBiomass17,PlantBiomass18,HopperWt17,HopperWt18) %>% 
-    gather(-Plot, key=Key, value=Measure) %>% separate(Key, into=c("Type", "Year"), sep=-2) %>% 
-    spread(key=Type, value=Measure) %>%  mutate(HopperWt = replace_na(HopperWt, 0)) %>% 
-    mutate(time = ifelse(Year=="16", 665, ifelse(Year=="17",1030, 1395))) %>% 
-    mutate(P = PlantBiomass*0.02/0.849056, H = HopperWt*0.11/0.849056) %>% 
+    mutate(W = Worm_Wt*0.1/0.212264) %>% # convert worm weight to g[N]~m^-2; worms 10% nitrogen
+    select(-Worm_Wt, -SeasonYear) %>%
+    left_join(CH4treatments) %>% # add the treatments
+    gather(-Plot, -time, -Treatment, key=StateVar, value = Biomass),
+    
+    # Now add the grasshopper and plant data
+    plotdata %>% 
+    select(Plot, PlantBiomass16,PlantBiomass17,PlantBiomass18,HopperWt17,HopperWt18) %>% 
+    gather(-Plot, key=Key, value=Measure) %>% 
+    separate(Key, into=c("Type", "Year"), sep=-2) %>% 
+    spread(key=Type, value=Measure) %>% 
+    mutate(HopperWt = replace_na(HopperWt, 0)) %>% 
+    left_join(
+      data.frame(
+        Year = c("16", "17", "18"),
+        time = c(665, 1030, 1395)
+      )
+    ) %>%
+    mutate(P = PlantBiomass*0.02/0.849056, # plants 2% nitrogen, standardized area to 1-m^2
+           H = HopperWt*0.11/0.849056) %>% # grasshoppers 11% nitrogen, standardized area to 1-m^2
     select(-Year, -HopperWt, -PlantBiomass) %>%
-    left_join(CH4treatments) %>% select(-Plot) %>% # add the treatments
-    gather(-time, -Treatment, key=StateVar, value=Biomass),
-  
+      left_join(CH4treatments) %>% # add the treatments
+      gather(-Plot, -time, -Treatment, key=StateVar, value = Biomass),
   
   # WORM EXTRACTION PLOTS  
-  wormWE %>% select(Treatment, SeasonYear, Worm_Wt) %>% filter(!is.na(Worm_Wt)) %>% 
+  wormWE %>% select(Plot, Treatment, SeasonYear, Worm_Wt) %>% 
+    filter(!is.na(Worm_Wt)) %>% # get rid of plots not sampled
     left_join(wormWEavgsample) %>% #add in model standardized dates
-    mutate(Biomass = Worm_Wt*0.1/0.212264) %>% select(-Worm_Wt, -SeasonYear) %>% # convert worm weight to g[N]~m^-2
+    mutate(Biomass = Worm_Wt*0.1/0.212264) %>% # convert worm weight to g[N]~m^-2
+    select(-Worm_Wt, -SeasonYear) %>% 
     mutate(Treatment = ifelse(Treatment =="Remove", "RmW", "Rt")) %>%
-    mutate(StateVar = "W"),
+    mutate(StateVar = "W") %>%
+    select(Plot, time, Treatment, StateVar, Biomass),
   
   
-  WE %>% select(Plot, Treatment, PlantBiomass16,PlantBiomass17,PlantBiomass18) %>% gather(-Plot,-Treatment, key=Key, value=Measure) %>% separate(Key, into=c("Type", "Year"), sep=-2) %>% spread(key=Type, value=Measure) %>% mutate(time = ifelse(Year=="16", 665, ifelse(Year=="17",1030, 1395))) %>% mutate(Biomass = PlantBiomass*0.02) %>% select(-Year, -PlantBiomass) %>%
-    mutate(Treatment = ifelse(Treatment =="Remove", "RmW", "Rt")) %>% select(-Plot) %>% # add treats
-    mutate(StateVar = "P"),
+  WE %>% 
+    select(Plot, Treatment, PlantBiomass16,PlantBiomass17,PlantBiomass18) %>% 
+    gather(-Plot,-Treatment, key=Key, value=Measure) %>% 
+    separate(Key, into=c("Type", "Year"), sep=-2) %>% 
+    spread(key=Type, value=Measure) %>% 
+    left_join(
+      data.frame(
+        Year = c("16", "17", "18"),
+        time = c(665, 1030, 1395)
+      )
+    ) %>%
+    mutate(Biomass = PlantBiomass*0.02) %>% # plants 2% N, already 1-m^2
+    select(-Year, -PlantBiomass) %>%
+    mutate(Treatment = ifelse(Treatment =="Remove", "RmW", "Rt")) %>% # add treats
+    mutate(StateVar = "P") %>%
+    select(Plot, time, Treatment, StateVar, Biomass),
   
-  
-  soildata %>% select(-Season, -Year) %>% filter(Type %in% c("NTe", "SIR")) %>%
+  # Soil data for both projects
+  soildata %>% 
+    select(-Season, -Year) %>% 
+    filter(Type %in% c("NTe", "SIR")) %>%
     left_join(soilavgsample) %>% select(-SeasonYear) %>% #add in model standardized dates
     spread(key=Type, value=Measure)  %>% 
     mutate(N = NTe*49000*1e-6,
-           M = ((((((((SIR/(12.01/44.01))/(1000*1000*44.01))*295*0.08205746)/0.998621))*100000)*40.04 + 0.37)/100)*49000*1000*1e-6) 
-  %>% select(Project, Plot, time, M, N) %>% gather(-Project, -Plot, -time, key=StateVar, value=Biomass) %>% left_join(
+           M = ((((((((SIR/(12.01/44.01))/(1000*1000*44.01))*295*0.08205746)/0.998621))*100000)*40.04 + 0.37)/100)*49000*1000*1e-6
+           ) %>% 
+    select(Project, Plot, time, M, N) %>% 
+    gather(-Project, -Plot, -time, key=StateVar, value=Biomass) %>% left_join(
     bind_rows(
       CH4treatments %>% mutate(Project = "CH4"),
-      WE %>% select(Plot, Treatment) %>% mutate(Treatment = ifelse(Treatment =="Remove", "RmW", "Rt")) %>% 
+      WE %>% select(Plot, Treatment) %>% 
+        mutate(Treatment = ifelse(Treatment =="Remove", "RmW", "Rt")) %>% 
         mutate(Project ="W"))
   ) %>% # add in the treatment codes
-    select(-Project, -Plot)
+    select(-Project) %>%
+    select(Plot, time, Treatment, StateVar, Biomass)
   
-)
+) %>%
 
-datatomodel %>% write_csv("~/Dropbox (Personal)/Yale PhD/Dissertation/Chapter 4/CH4_Model_Directory/datatomodel_21Mar2019.csv")
-
-# Summarize growth of Solidago in plots...
-SOAL2017 %>% filter(DOY %in% c(171, 192, 267)) %>%
-  mutate(time = ifelse(DOY==171, "One", 
-                       ifelse(DOY==192, "Two", "Three"))) %>%
-  mutate(PN = (-6.789731 + 0.148969*HtTOT)*0.02) %>% # from Cerina
-  select(Plot, time, PN) %>%
-  spread(key=time, value=PN) %>%
-  mutate(growtha = (Three-One)/(267-171),
-         growthb = (Three-Two)/(267-192),
-         growthc = (Two-One)/(192-171)
+  # Modify plot names by project
+  left_join(
+    
+    bind_rows(
+      CH4treatments %>% mutate(Project = "E"),
+      WE %>% select(Plot, Treatment) %>% 
+        mutate(Treatment = ifelse(Treatment =="Remove", "RmW", "Rt")) %>% 
+        mutate(Project ="W")) %>%
+      mutate(Plot2 = paste0(Project, Plot)) %>%
+      select(-Project)
   ) %>%
-  select(Plot,growtha, growthb, growthc) %>%
-  summarize(mean(growthc))
+  select(-Plot) %>%
+  rename(Plot = Plot2) %>%
+  select(Plot, time, Treatment, StateVar, Biomass)
 
-# Make it a percent change, so no transformation is required
-SOAL2017 %>% filter(DOY %in% c(171, 192, 267)) %>%
-  mutate(time = ifelse(DOY==171, "One", 
-                       ifelse(DOY==192, "Two", "Three"))) %>%
-  mutate(PN = (-6.789731 + 0.148969*HtTOT)*0.02) %>% # from Cerina
-  select(Plot, time, PN) %>%
-  spread(key=time, value=PN) %>%
-  mutate(growth = (Three-One)/(One)) %>%
-  select(Plot,growth) %>%
-  summarize(sd(growth), mean(growth))
+if(verbose) datatomodel %>% write_csv("Data/datatomodel.csv")
 
-# Species Turnover Rate ---------------------------------------------------
+# ---- Load and analyze other people's data
 
-percentcoverWE %>% select(-Date, - Date2, -Treatment) %>% gather(-Plot, -Year, key=Species, value=Cover) %>% group_by(Plot, Year, Species) %>% summarize(Cover= mean(Cover)) %>% ungroup() %>% spread(key=Year, value=Cover) %>% mutate(P67_dis = ifelse(`17`==0 & `16`!=0,1,0),P67_ap = ifelse(`16`==0 & `17`!=0,1,0),P78_dis = ifelse(`18`==0 & `17`!=0,1,0),P78_ap = ifelse(`17`==0 & `18`!=0,1,0)) %>% select(-`16`, -`17`, -`18`, -Species) %>% gather(-Plot, key=Type, value=Part) %>% separate(Type, into=c("Time", "Type"),sep="_") %>% group_by(Plot, Time, Type) %>% summarize(Count = sum(Part)) %>% ungroup() %>% group_by(Type, Plot) %>% arrange(Time) %>% mutate(cs = cumsum(Count)) %>% group_by(Type) %>% summarise(sd=sd(Count), Count=mean(Count))
+#Experimental Data
 
-percentcoverWE %>% select(-Date, - Date2, -Treatment) %>% gather(-Plot, -Year, key=Species, value=Cover) %>% group_by(Plot, Year, Species) %>% summarize(Cover= mean(Cover)) %>% ungroup() %>% spread(key=Year, value=Cover)  
+datatomodel = datatomodel %>% 
+  mutate(Experiment = "Rob_WE")
 
-# Figure out earthworm population reduction -------------------------------
+# Add grasshopper data from experiments
+zack2 = read_csv("Data/zackmiller_data.csv") %>% 
+  mutate(SOL = Sol_Biomass*Sol_perN_post/100,
+         GR = Gr_Biomass*Gr_perN_post/100) %>% 
+  mutate(PTOT = SOL + GR, PTOTb = Sol_Biomass + Gr_Biomass) %>% 
+  mutate(SOLb = Sol_Biomass, GRb = Gr_Biomass) %>% 
+  filter(Env =="C", Trophic <3) %>% select(ID, Trophic, SOL:GRb) %>% 
+  mutate(Field="Xmas", Experiment="Zack", Trophic=as.factor(Trophic))
 
-wormdata %>% filter(SeasonYear=="Spring16") %>% summarize(Nbar = mean(WORM_N),Wbar = mean(Worm_Wt))
+adam2 = read_csv("Data/adamhouston_data.csv") %>% 
+  filter(N.Treatment=="None" & Trophic.Treatment < 3 & !is.na(totmass)) %>% 
+  mutate(Trophic.Treatment = as.factor(Trophic.Treatment)) %>% 
+  mutate(SOL = smass*solidago.final.percentN/100,
+         GR = gmass*grass.final.percentN/100) %>% 
+  mutate(PTOT = SOL + GR, PTOTb = smass + gmass) %>% 
+  mutate(Trophic = Trophic.Treatment, SOLb = smass, 
+         GRb = gmass,
+         HopperN = Grasshopper.weight*Grasshopper.percentN/100) %>% 
+  mutate(ID = paste0("Adam",Cage.ID)) %>%
+  select(ID, Field, SOL:HopperN) %>% filter(!is.na(PTOT)) %>% 
+  mutate(Experiment = "Adam")
 
-wormWE %>% filter(SeasonYear=="Spring17") %>% summarize(Nbar = mean(WORM_N, na.rm=T),Wbar = mean(Worm_Wt, na.rm=T))
+hopperdata = bind_rows(zack2, adam2) %>%
+  select(ID, Trophic, Experiment, PTOT, HopperN) %>%
+  mutate(P = PTOT/ 3.14*0.26*0.26, # correct area
+         H = HopperN/ 3.14*0.26*0.26) %>% # correct area
+  select(-PTOT, -HopperN) %>%
+  gather(-ID, -Trophic, - Experiment, key=StateVar, value = Biomass) %>%
+  filter(!(is.na(Biomass))) %>% 
+  mutate(Treatment = ifelse(Trophic==2, "RtH","RmH"), time=300) %>% 
+  rename(Plot = ID) %>%
+  select(Plot, time, Treatment, StateVar, Biomass, Experiment)
 
-wormWE %>% filter(SeasonYear=="Fall16") %>% summarize(Nbar = mean(WORM_N, na.rm=T),Wbar = mean(Worm_Wt, na.rm=T))
+# Add MESc data
 
-# Test for lag effect -----------------------------------------------------
+MESc_data <- read_csv("Data/MESc_data.csv") %>% 
+  filter(Treatment %in% c("A", "B")) %>% # select only hopper treatments
+  
+  # Create plot ID
+  left_join(
+    data.frame(Site = rep(c("AO", "CP", "Ps", "Rr", "WR"), 2),
+               Treatment = rep(c("A","B"), each = 5),
+               Plot = as.character(paste0("MESc", seq(1,10))))
+  ) %>%
+  select(-Site) %>%
+  mutate(Treatment = ifelse(Treatment =="A", "RmH", "RtH"), # rename treatments
+         area = 3.14*(0.25/2)^2,
+         time = 300) %>%
+  mutate(H = MEFE*0.11/area, # convert hopper to g-N m^-2
+         P = SOLb*0.02/area, #convert plants to gN m^-2
+         N = TN_ug_gdw*1e-6*(0.1764*3.14*12.5*12.5*30)/area, # Bulk density g cm^-3 times area cm^3 ; convert inorganic N to gN m^-2
+         M = ((((((((SIR/(12.01/44.01))/(1000*1000*44.01))*295*0.08205746)/0.998621))*100000)*40.04 + 0.37)/100)*49000*1000*1e-6
+  ) %>% 
+  select(Plot, Treatment,time, P, N, M) %>% 
+  gather(-Plot, -Treatment, -time, key=StateVar, value=Biomass) %>%
+  mutate(Experiment = "Rob_MESc") %>%
+  select(Plot, time, Treatment, StateVar, Biomass, Experiment)
 
-m1 = lm(PlantBiomass ~ WORM_N + HopperN , data=pbdata %>% filter(Year == "17") %>% select(Plot, WORM_N, HopperN, AP_N, LUM_N) %>% full_join(pbdata %>% filter(Year == "18") %>% select(Plot, PlantBiomass)))
-summary(m1)
+Os06 = data.frame(PBio = c((118.609+118.2+118.2)/3/3.14*0.26*0.26, 80.164/3.14*0.26*0.26),
+                  Treatment = c("RmH", "RtH"),
+                  Experiment = c("Os06", "Os06"),
+                  time = c(1395, 1395)) %>% 
+  mutate(Biomass = PBio*0.02, StateVar="P") %>% 
+  select(-PBio) %>% bind_rows(
+    data.frame(Biomass = c(0, 0.0644),
+               Treatment = c("RmH", "RtH"),
+               Experiment = c("Os06", "Os06"),
+               time = c(1395, 1395)) %>% 
+      mutate(StateVar="H")
+  ) %>%
+  mutate(Plot = c("Os06_1","Os06_2","Os06_1","Os06_2")) %>%
+  select(Plot, time, Treatment, StateVar, Biomass, Experiment)
 
-m1 = lm(NTs ~ WORM_N + HopperN , data=pbdata %>% filter(Year == "17") %>% select(Plot, WORM_N, HopperN, AP_N, LUM_N) %>% full_join(pbdata %>% filter(Year == "18") %>% select(Plot, NTs)))
-summary(m1)
+# Final data
 
-m1 = lm(SIR ~ WORM_N + HopperN , data=pbdata %>% filter(Year == "17") %>% select(Plot, WORM_N, HopperN, AP_N, LUM_N) %>% full_join(pbdata %>% filter(Year == "18") %>% select(Plot, SIR)))
-summary(m1)
+datatomodel2 = bind_rows(datatomodel, hopperdata,MESc_data, Os06)
 
-m1 = lm(NTm ~ WORM_N + HopperN , data=pbdata %>% filter(Year == "17") %>% select(Plot, WORM_N, HopperN, AP_N, LUM_N) %>% full_join(pbdata %>% filter(Year == "18") %>% select(Plot, NTm)))
-summary(m1)
+rm(datatomodel, hopperdata,MESc_data, Os06, zack2, adam2)
+
+write_csv(datatomodel2, "Data/datatomodel2.csv")
+
+# ---- Load climate data and make function ----
+
+if(verbose){
+  
+  climate = read_csv("Data/temp_records.csv") %>% gather(key=Month, value = Value,-Type, -Year, -Day) %>% spread(key=Type, value=Value) %>% filter(Temp != "-") %>% mutate(Precip = ifelse(Precip=="T",0, Precip)) %>% mutate(Temp = as.numeric(ifelse(Temp=="M", -9999,Temp)),Precip = as.numeric(ifelse(Precip=="M", -9999,Precip))) %>% mutate(Temp = (Temp-32)*5/9, Precip= Precip*2.54)
+  
+  climate = climate %>% mutate(Month2 = match(Month,month.abb))
+  climate = climate %>% mutate(Date = as.Date(paste(Year, Month2,Day,sep="-"),format = "%Y-%m-%d")) 
+  climate = climate%>% mutate(DOY =  as.numeric(strftime(climate$Date, format = "%j")))
+  
+  climate2 = climate %>% filter(Year==2015) %>% select(DOY, Temp) %>% mutate(DOY = replace_na(DOY, 366))
+  
+  climate2[climate2$DOY==366,2] = climate2[climate2$DOY==365,2]
+  
+  climate2["TempK"] = climate2$Temp + 273.15
+  
+  # Model with cosine wave
+  m1 = nls(TempK ~ a*cos(2*3.14/365*DOY + c) + b, start=c(a=-12, b=281.15, c=0), data=climate2)
+  
+  summary(m1)
+  
+  # curve(coef(m1)[1]*cos(2*3.14/365*x + coef(m1)[3])+coef(m1)[2], 0, 365, col="green", add=T)
+  
+  LTtemp = function(doy){
+    
+    -12.8244*cos(2*3.14/365*doy-0.3666)+281.9846
+    
+  }
+  
+  pdf("temp_approx.pdf")
+  plot(TempK~DOY, data=climate2[order(climate2$DOY),], type="l")
+  points(seq(1,365), LTtemp(seq(1,365)), type="l", col="purple")
+  dev.off()
+  
+}
+
+# ---- Additional analysis of Experimental Data for model ----
+
+if(verbose){
+  
+  # Summarize growth of Solidago in plots...
+  SOAL2017 %>% filter(DOY %in% c(171, 192, 267)) %>%
+    mutate(time = ifelse(DOY==171, "One", 
+                         ifelse(DOY==192, "Two", "Three"))) %>%
+    mutate(PN = (-6.789731 + 0.148969*HtTOT)*0.02) %>% # from Cerina
+    select(Plot, time, PN) %>%
+    spread(key=time, value=PN) %>%
+    mutate(growtha = (Three-One)/(267-171),
+           growthb = (Three-Two)/(267-192),
+           growthc = (Two-One)/(192-171)
+    ) %>%
+    select(Plot,growtha, growthb, growthc) %>%
+    summarize(mean(growthc))
+  
+  # Make it a percent change, so no transformation is required
+  SOAL2017 %>% filter(DOY %in% c(171, 192, 267)) %>%
+    mutate(time = ifelse(DOY==171, "One", 
+                         ifelse(DOY==192, "Two", "Three"))) %>%
+    mutate(PN = (-6.789731 + 0.148969*HtTOT)*0.02) %>% # from Cerina
+    select(Plot, time, PN) %>%
+    spread(key=time, value=PN) %>%
+    mutate(growth = (Three-One)/(One)) %>%
+    select(Plot,growth) %>%
+    summarize(sd(growth), mean(growth))
+  
+  # Species Turnover Rate ---------------------------------------------------
+  
+  percentcoverWE %>% select(-Date, - Date2, -Treatment) %>% gather(-Plot, -Year, key=Species, value=Cover) %>% group_by(Plot, Year, Species) %>% summarize(Cover= mean(Cover)) %>% ungroup() %>% spread(key=Year, value=Cover) %>% mutate(P67_dis = ifelse(`17`==0 & `16`!=0,1,0),P67_ap = ifelse(`16`==0 & `17`!=0,1,0),P78_dis = ifelse(`18`==0 & `17`!=0,1,0),P78_ap = ifelse(`17`==0 & `18`!=0,1,0)) %>% select(-`16`, -`17`, -`18`, -Species) %>% gather(-Plot, key=Type, value=Part) %>% separate(Type, into=c("Time", "Type"),sep="_") %>% group_by(Plot, Time, Type) %>% summarize(Count = sum(Part)) %>% ungroup() %>% group_by(Type, Plot) %>% arrange(Time) %>% mutate(cs = cumsum(Count)) %>% group_by(Type) %>% summarise(sd=sd(Count), Count=mean(Count))
+  
+  percentcoverWE %>% select(-Date, - Date2, -Treatment) %>% gather(-Plot, -Year, key=Species, value=Cover) %>% group_by(Plot, Year, Species) %>% summarize(Cover= mean(Cover)) %>% ungroup() %>% spread(key=Year, value=Cover)  
+  
+  # Figure out earthworm population reduction -------------------------------
+  
+  wormdata %>% filter(SeasonYear=="Spring16") %>% summarize(Nbar = mean(WORM_N),Wbar = mean(Worm_Wt))
+  
+  wormWE %>% filter(SeasonYear=="Spring17") %>% summarize(Nbar = mean(WORM_N, na.rm=T),Wbar = mean(Worm_Wt, na.rm=T))
+  
+  wormWE %>% filter(SeasonYear=="Fall16") %>% summarize(Nbar = mean(WORM_N, na.rm=T),Wbar = mean(Worm_Wt, na.rm=T))
+  
+  # Test for lag effect -----------------------------------------------------
+  
+  m1 = lm(PlantBiomass ~ WORM_N + HopperN , data=pbdata %>% filter(Year == "17") %>% select(Plot, WORM_N, HopperN, AP_N, LUM_N) %>% full_join(pbdata %>% filter(Year == "18") %>% select(Plot, PlantBiomass)))
+  summary(m1)
+  
+  m1 = lm(NTs ~ WORM_N + HopperN , data=pbdata %>% filter(Year == "17") %>% select(Plot, WORM_N, HopperN, AP_N, LUM_N) %>% full_join(pbdata %>% filter(Year == "18") %>% select(Plot, NTs)))
+  summary(m1)
+  
+  m1 = lm(SIR ~ WORM_N + HopperN , data=pbdata %>% filter(Year == "17") %>% select(Plot, WORM_N, HopperN, AP_N, LUM_N) %>% full_join(pbdata %>% filter(Year == "18") %>% select(Plot, SIR)))
+  summary(m1)
+  
+  m1 = lm(NTm ~ WORM_N + HopperN , data=pbdata %>% filter(Year == "17") %>% select(Plot, WORM_N, HopperN, AP_N, LUM_N) %>% full_join(pbdata %>% filter(Year == "18") %>% select(Plot, NTm)))
+  summary(m1)
+  
+}
