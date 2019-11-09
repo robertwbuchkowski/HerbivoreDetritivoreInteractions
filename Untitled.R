@@ -14,7 +14,8 @@ if(verbose){
   
   # Use the average biomass in my field treatments to calibrate the model equilibrium
   
-  datatomodel2 %>% filter(Treatment == "Rt" & Experiment == "Rob_WE") %>%
+  datatomodel2 %>% 
+    filter(Treatment == "Rt" & Experiment == "Rob_WE") %>%
     group_by(StateVar) %>%
     summarize(Biomass = mean(Biomass))
 }
@@ -126,7 +127,7 @@ out0_2 <- ode(y = yint_base2, times = 1:1000, parms = params, func = Buchkowski2
 
 (runout0_2 <- runsteady(y = yint_base2, parms = params, func = Buchkowski2019))
 
-
+length(params)
 lparams = log(params[1:20])
 nparams = params[21]
 
@@ -135,7 +136,8 @@ fitparams <- function(ptf, pntf, input){
   ptf2 = c(exp(ptf), pntf)
   
   # run steady works better than stode!
-  a <- runsteady(y = input, parms = ptf2, func = Buchkowski2019, hmax = 1)$y
+  a <- runsteady(y = input, parms = ptf2, 
+                 func = Buchkowski2019)$y
   
   # hmax = 1 was not enough.
   
@@ -184,12 +186,14 @@ rm(timelist2_expt,timelist2)
 
 # Fit the model with 1 plant species -----
 
-(fit1 <- optim(par = lparams, fn = fitparams, pntf = nparams, input = yint_base1, control = list(maxit = 5000)))
+(fit1 <- optim(par = lparams, fn = fitparams, 
+               pntf = nparams, input = yint_base1, 
+               control = list(maxit = 5000)))
 
 
 if(fit1$convergence!=0){print("WARNING!!!!!! DID NOT CONVERGE")}
 
-(params1 = c(exp(fit1$par), AAT = 1))
+(params1 = c(exp(fit1$par), nparams))
 
 params1["a_wl"] = 1
 
@@ -284,79 +288,141 @@ for(i in 1:length(toplot)){
 
 # Fit the 1 plant species model to actual data ----
 
-datatomodel2 = read_csv("Data/datatomodel2.csv")
+ rootfun <- function(Time, State, Pars) {
+      dstate <- unlist(Buchkowski2019(Time, State, Pars))
+   sum(abs(dstate)) - 1e-4
+  }
 
-ystable = runout1$y
-
-output2_WE_Return = ode(y=ystable,times = 1:tmax2, func=Buchkowski2019, parms=params1_1)
-
-output2_WE_Remove = ode(y=ystable,times = 1:tmax2, func=Buchkowski2019, parms=params1_1,
-                        events = list(data=eshock_WE))
-
-output2_HW = ode(y=ystable,times = 1:tmax2, func=Buchkowski2019, parms=params1_1,
-                 events = list(data=eadd))
-
-output2_H = ode(y=ystable,times = 1:tmax2, func=Buchkowski2019, parms=params1_1,
-                events = list(data=eshock))
-
-ystable["H"] = 0
-
-output2_W = ode(y=ystable,times = 1:tmax2, func=Buchkowski2019, parms=params1_1,
-                events = list(data=eadd))
-
-output2_0 = ode(y=ystable,times = 1:tmax2, func=Buchkowski2019, parms=params1_1,
-                events = list(data=eshock))
-
-output2_WE_Hopper = ode(y=ystable,times = 1:tmax2, func=Buchkowski2019, parms=params1_1)
-
-out = rbind(output2_WE_Return, output2_WE_Hopper,
-            output2_WE_Return,output2_WE_Remove,
-            output2_HW, output2_H, 
-            output2_W, output2_0)
-
-
-out1 = data.frame(out, Treatment = rep(c("RtH","RmH","Rt","RmW","HW","H","W","N"), each=tmax2))
-
-out1 %>% as_tibble() %>% 
-  gather(-time, -Treatment, key= StateVar, value = Size) %>% 
-  ggplot(aes(x=time, y=Size, color = Treatment)) + geom_line() + 
-  facet_wrap(.~StateVar, scales="free") + 
-  geom_point(
-    data = datatomodel2 %>%
-      select(-Experiment) %>%
-      group_by(time, StateVar, Treatment) %>%
-      summarize(Bio = mean(Biomass)) %>%
-      filter(time != 114), 
-    aes(x=time, y = Bio)
-  )
-
-out1 %>% as_tibble() %>% 
-  gather(-time, -Treatment, key= StateVar, value = Size)
+custom_modCost <- function(paramscur1, datatofit){
   
-datatomodel2 %>%
-  select(-Experiment) %>%
-  group_by(time, StateVar, Treatment) %>%
-  summarize(Bio = mean(Biomass)) %>%
-  filter(time != 114) %>%
-  left_join(
-    out1 %>% as_tibble() %>% 
-      gather(-time, -Treatment, key= StateVar, value = Size)
-  )  %>% 
-  ggplot(aes(x=time, y=Size, color = Treatment)) + geom_line() + 
-  facet_wrap(.~StateVar, scales="free") + geom_point(aes(y = Bio))
+  paramscur = c(paramscur1, AAT = 1)
+  
+  # Run the model steady-state
+  runout_full_0 <- ode(y = yint_base1, times = 1:10000, parms = paramscur, 
+                              func = Buchkowski2019, 
+                       rootfun = rootfun)
+  
+  if(any(is.na(runout_full_0))) return(5000)
+  
+  
+  if(dim(runout_full_0)[1] == 10000) print("Steady run not there at 10000")
+  
+  if(min(runout_full_0[dim(runout_full_0)[1],-1]) < 0) return(5000)
+  
+  # Simulate a few years to make sure it is stable
+  paramscur["AAT"] = 0 # activate temperature
+  
+  out_full_0 <- ode(y = runout_full_0[dim(runout_full_0)[1],-1], times = 1:(365*5),
+                    parms = paramscur, func = Buchkowski2019)
+  # plot(out_full_0)
 
-datatomodel2 %>%
-  select(-Experiment) %>%
-  group_by(time, StateVar, Treatment) %>%
-  summarize(Bio = mean(Biomass)) %>%
-  filter(time != 114) %>%
-  left_join(
-    out1 %>% as_tibble() %>% 
-      gather(-time, -Treatment, key= StateVar, value = Size)
-  )  %>% 
-  ggplot(aes(x=Size, y=Bio, color = Treatment)) + geom_point() + 
-  facet_wrap(.~StateVar, scales="free")
+  error = sum(abs(out_full_0[(365*4 + 180),-1] - out_full_0[(365*3 + 180),-1]))
 
+  if(error > 1e-5) print(paste("Annual run not super stable:", error)) #stop("Not a stable cycle")
+  
+  ystable = out_full_0[(365*5),-1]
+  
+  output2_WE_Return = ode(y=ystable,times = 1:tmax2, func=Buchkowski2019, parms=paramscur)
+  
+  output2_WE_Remove = ode(y=ystable,times = 1:tmax2, func=Buchkowski2019, parms=paramscur,
+                          events = list(data=eshock_WE))
+  
+  output2_HW = ode(y=ystable,times = 1:tmax2, func=Buchkowski2019, parms=paramscur,
+                   events = list(data=eadd))
+  
+  output2_H = ode(y=ystable,times = 1:tmax2, func=Buchkowski2019, parms=paramscur,
+                  events = list(data=eshock))
+  
+  ystable["H"] = 0
+  
+  output2_W = ode(y=ystable,times = 1:tmax2, func=Buchkowski2019, parms=paramscur,
+                  events = list(data=eadd))
+  
+  output2_0 = ode(y=ystable,times = 1:tmax2, func=Buchkowski2019, parms=paramscur,
+                  events = list(data=eshock))
+  
+  output2_WE_Hopper = ode(y=ystable,times = 1:tmax2, func=Buchkowski2019, parms=paramscur)
+  
+  out = rbind(output2_WE_Return, output2_WE_Hopper,
+              output2_WE_Return,output2_WE_Remove,
+              output2_HW, output2_H, 
+              output2_W, output2_0)
+  
+  out = data.frame(out, Treatment = rep(c("RtH","RmH","Rt","RmW","HW","H","W","N"), each=tmax2))
+  
+  datatofit %>%
+    left_join(
+      datatofit %>%
+        group_by(StateVar) %>%
+        summarize(Bmad = sd(Biomass)) %>%
+        ungroup()
+    ) %>%
+    left_join(
+      out %>% 
+        as_tibble() %>%
+        gather(-time, -Treatment, key = StateVar, value = Model)
+    ) %>% 
+    mutate(Diff = abs((Model - Biomass)/Bmad)) %>%
+    summarize(Cost = sum(Diff)) %>% unlist() %>% return()
+}
+
+custom_modCost(params[-21], datatomodel2)
+
+fit_test = optim(par = params[-21], fn = custom_modCost,
+                 datatofit = datatomodel2,
+                 lower = rep(0, 20),
+                 upper = c(1,1,1,2000,1,
+                            1,2000, 1,1,1,
+                            1,1,1,10,1,
+                            1,1,1,1,1))
+
+write.csv(fit_test$par, "par_fit.csv")
+
+if(verbose){
+  
+  
+  
+  out1 %>% as_tibble() %>% 
+    gather(-time, -Treatment, key= StateVar, value = Size) %>% 
+    ggplot(aes(x=time, y=Size, color = Treatment)) + geom_line() + 
+    facet_wrap(.~StateVar, scales="free") + 
+    geom_point(
+      data = datatomodel2 %>%
+        select(-Experiment) %>%
+        group_by(time, StateVar, Treatment) %>%
+        summarize(Bio = mean(Biomass)) %>%
+        filter(time != 114), 
+      aes(x=time, y = Bio)
+    )
+  
+  out1 %>% as_tibble() %>% 
+    gather(-time, -Treatment, key= StateVar, value = Size)
+  
+  datatomodel2 %>%
+    select(-Experiment) %>%
+    group_by(time, StateVar, Treatment) %>%
+    summarize(Bio = mean(Biomass)) %>%
+    filter(time != 114) %>%
+    left_join(
+      out1 %>% as_tibble() %>% 
+        gather(-time, -Treatment, key= StateVar, value = Size)
+    )  %>% 
+    ggplot(aes(x=time, y=Size, color = Treatment)) + geom_line() + 
+    facet_wrap(.~StateVar, scales="free") + geom_point(aes(y = Bio))
+  
+  datatomodel2 %>%
+    select(-Experiment) %>%
+    group_by(time, StateVar, Treatment) %>%
+    summarize(Bio = mean(Biomass)) %>%
+    filter(time != 114) %>%
+    left_join(
+      out1 %>% as_tibble() %>% 
+        gather(-time, -Treatment, key= StateVar, value = Size)
+    )  %>% 
+    ggplot(aes(x=Size, y=Bio, color = Treatment)) + geom_point() + 
+    facet_wrap(.~StateVar, scales="free")
+  
+}
 
 # Fit the model with 2 plant species (NOT WORKING NOW) -----
 
