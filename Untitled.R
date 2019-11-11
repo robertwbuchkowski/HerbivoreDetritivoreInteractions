@@ -184,7 +184,7 @@ eadd <- data.frame(var = c("P", "L", "W", rep("W", length(timelist2))),
 
 rm(timelist2_expt,timelist2)
 
-# Fit the model with 1 plant species -----
+# Fit the EQM model with 1 plant species -----
 
 (fit1 <- optim(par = lparams, fn = fitparams, 
                pntf = nparams, input = yint_base1, 
@@ -293,7 +293,7 @@ for(i in 1:length(toplot)){
    sum(abs(dstate)) - 1e-4
   }
 
-custom_modCost <- function(paramscur1, datatofit){
+custom_modCost <- function(paramscur1, datatofit, otpt = "Cost"){
   
   paramscur = c(paramscur1, AAT = 1)
   
@@ -315,6 +315,8 @@ custom_modCost <- function(paramscur1, datatofit){
   out_full_0 <- ode(y = runout_full_0[dim(runout_full_0)[1],-1], times = 1:(365*5),
                     parms = paramscur, func = Buchkowski2019)
   # plot(out_full_0)
+  
+  if(is.na(out_full_0[(365*4 + 180),2])) return(5000)
 
   error = sum(abs(out_full_0[(365*4 + 180),-1] - out_full_0[(365*3 + 180),-1]))
 
@@ -350,25 +352,42 @@ custom_modCost <- function(paramscur1, datatofit){
   
   out = data.frame(out, Treatment = rep(c("RtH","RmH","Rt","RmW","HW","H","W","N"), each=tmax2))
   
-  datatofit %>%
-    left_join(
-      datatofit %>%
-        group_by(StateVar) %>%
-        summarize(Bmad = sd(Biomass)) %>%
-        ungroup()
-    ) %>%
-    left_join(
-      out %>% 
-        as_tibble() %>%
-        gather(-time, -Treatment, key = StateVar, value = Model)
-    ) %>% 
-    mutate(Diff = abs((Model - Biomass)/Bmad)) %>%
-    summarize(Cost = sum(Diff)) %>% unlist() %>% return()
+  if(otpt == "Cost"){
+    datatofit %>%
+      left_join(
+        datatofit %>%
+          group_by(StateVar) %>%
+          summarize(Bmad = sd(Biomass)) %>%
+          ungroup()
+      ) %>%
+      left_join(
+        out %>% 
+          as_tibble() %>%
+          gather(-time, -Treatment, key = StateVar, value = Model)
+      ) %>% 
+      mutate(Diff = abs((Model - Biomass)/Bmad)) %>%
+      summarize(Cost = sum(Diff)) %>% unlist() %>% return()
+  }else{
+    datatofit %>%
+      left_join(
+        datatofit %>%
+          group_by(StateVar) %>%
+          summarize(Bmad = sd(Biomass)) %>%
+          ungroup()
+      ) %>%
+      left_join(
+        out %>% 
+          as_tibble() %>%
+          gather(-time, -Treatment, key = StateVar, value = Model)
+      ) %>% return()
+  }
+  
+  
 }
 
 custom_modCost(params[-21], datatomodel2)
 
-fit_test = optim(par = params[-21], fn = custom_modCost,
+fit_test = optim(par = paramsfit, fn = custom_modCost,
                  datatofit = datatomodel2,
                  lower = rep(0, 20),
                  upper = c(1,1,1,2000,1,
@@ -378,10 +397,16 @@ fit_test = optim(par = params[-21], fn = custom_modCost,
 
 write.csv(fit_test$par, "par_fit.csv")
 
+paramsfit = params[1:20]
+paramsfit[1:20] = read.csv("par_fit.csv")$x[1:20]
+
+datafit = custom_modCost(paramsfit, datatomodel2, otpt = "Other")
+
+debugonce(custom_modCost)
+
+
 if(verbose){
-  
-  
-  
+
   out1 %>% as_tibble() %>% 
     gather(-time, -Treatment, key= StateVar, value = Size) %>% 
     ggplot(aes(x=time, y=Size, color = Treatment)) + geom_line() + 
