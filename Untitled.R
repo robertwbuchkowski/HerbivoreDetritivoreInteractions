@@ -22,76 +22,18 @@ if(verbose){
 
 # Model formulation ----
 
-Buchkowski2019 <-function(t, y,pars){
-  
-  with(as.list(c(pars,y)),{
-    
-    if(AAT == 1){
-      Temp = 281.9906
-    }else{
-      Temp = -12.8244*cos(2*3.14/365*(t %% 365)-0.3666)+281.9846
-    }
-    
-    # Temperature-dependent functions
-    A_W = exp(-0.25/8.62e-05*(1/Temp-1/288.15)) # Based on Johnston et al. 2018 
-    A_P = exp(-2493/Temp)/(1 + (2493/(26712-2493))*exp(26712*(1/(297.65) - 1/Temp))) # Based on Feng
-    
-    V0 = exp(0.063*(Temp - 273.15) + 5.47) # Based on Wieder et al. 2013
-    K0 = exp(0.007*(Temp - 273.15) + 3.19) # Based on Wieder et al. 2013
-    
-    mfr = (V0*Vlm*L*M/(K0*Klm + M))/((V0*Vsm*S*M/(K0*Ksm + M)) + V0*Vlm*L*M/(Klm + M))
-    
-    dL = tp*P + tw*W*W + th*H*H + # litter inputs from dead bodies
-      (1-a_hp)*A_W*Vhp*H*P - # sloppy herbivore feeding/ urine loss
-      V0*Vlm*L*M/(K0*Klm + M) - A_W*Vlw*L*W - # litter consumed by worms and microbes
-    q2*L
-      
-    dM = a_m*(V0*Vlm*L*M/(K0*Klm + M) + V0*Vsm*S*M/(K0*Ksm + M)) - # microbes eat litter and soil
-      A_W*Vlw*mfr*M*W - A_W*Vsw*(1-mfr)*M*W - # worms eat microbes in litter and soil
-      tm*M # microbes die
-    
-    dW = a_wl*(A_W*Vlw*L*W) + # worms eat litter
-      A_W*Vsw*S*W + # worms eat soil (unassimlated soil stays put)
-      A_W*Vlw*mfr*M*W + A_W*Vsw*(1-mfr)*M*W - # worm eat microbes (unassimulated microbes survive gut passage)
-      tw*W*W # worms die
-    
-    dN = IN - q*N - # system gains and losses
-      fi*N + fo*S + # exchange with SOM and IORG
-      (1-a_m)*(V0*Vlm*L*M/(K0*Klm + M) + V0*Vsm*S*M/(K0*Ksm + M)) - # microbial mineralization
-      A_P*Vnp*N*P # plant uptake of nitrogen 
-    
-    dS = tm*M - # input from dead microbes
-      V0*Vsm*S*M/(K0*Ksm + M) - # loss to microbes
-      A_W*Vsw*S*W + # loss to worms
-      (1-a_wl)*(Vlw*L*W) + # unassimulated worm faeces
-      fi*N - fo*S # exchange with IORG
-    
-    dP = A_P*Vnp*N*P - # nitrogen gain
-      tp*P - # density-dependent death
-      A_W*Vhp*H*P # herbivory
-    
-    dP2 = A_P*Vnp*1.5*N*P2 - # nitrogen gain
-      tp*P2 - # density-dependent death
-      A_W*Vhp*2*H*P2 # herbivory
-    
-    dH = a_hp*A_W*Vhp*H*P + # herbivory normal plant
-      a_hp*A_W*Vhp*H*P2 - # herbivory second plant
-      th*H*H # death
-    
-    return(list(c(dL, dM, dW, dN, dS, dP, dP2, dH)))
-    
-  }
-  )
-}
-
 params<- c(Vlm = 0.025/414.4523,
            Klm = 0.005/25.83898,
            Vsm = 0.011/414.4523,
            Ksm = 2500/25.83898,
            Vlw = 0.0013/0.8026427,
+           Klw = 30,
            Vsw = 0.01/0.8026427,
+           Ksw = 100,
            Vnp = 1244.671,
+           Knp = 1,
            Vhp = 0.01/0.8026427,
+           Khp = 5,
            a_hp = 0.5,
            a_m = 0.50,
            a_wl = 0.3,
@@ -128,8 +70,8 @@ out0_2 <- ode(y = yint_base2, times = 1:1000, parms = params, func = Buchkowski2
 (runout0_2 <- runsteady(y = yint_base2, parms = params, func = Buchkowski2019))
 
 length(params)
-lparams = log(params[1:20])
-nparams = params[21]
+lparams = log(params[1:24])
+nparams = params[25]
 
 fitparams <- function(ptf, pntf, input){
   
@@ -286,6 +228,95 @@ for(i in 1:length(toplot)){
 }
 
 
+
+# Model collinearity analysis ----
+
+datatomodel2
+
+PARS = params[-25]
+
+solveBuchkowski <- function(PARS){
+  
+  # Load in the model to fit
+  source("Buchkowski2019_modifiedmodel.R")
+  
+  input = c(L=26, # WE plots with C:N ratio from files
+                 M=6.73, # WE plots
+                 W=7.18, # WE plots
+                 N=0.192, # WE plots
+                 S=135, # historical data
+                 P=10.7, # historical data
+                 P2 = 0, # only use if second plant exists
+                 H=0.0149) # plot averages
+  
+  output <- ode(y = input, 
+                    times = 1:tmax2,
+                    parms = c(PARS, AAT = 0), 
+                func = Buchkowski2019,
+                events = list(data=eadd))
+  
+  return(output)
+  
+}
+
+out = solveBuchkowski(PARS)
+
+DataW = datatomodel2 %>%
+  filter(Treatment == "HW") %>%
+  filter(StateVar == "W") %>%
+  select(time, Biomass) %>%
+  rename("W" = Biomass) %>%
+  as.data.frame()
+
+DataP = datatomodel2 %>%
+  filter(Treatment == "HW") %>%
+  filter(StateVar == "P") %>%
+  select(time, Biomass) %>%
+  rename("P" = Biomass) %>%
+  as.data.frame()
+
+DataH = datatomodel2 %>%
+  filter(Treatment == "HW") %>%
+  filter(StateVar == "H") %>%
+  select(time, Biomass) %>%
+  rename("H" = Biomass) %>%
+  as.data.frame()
+
+DataM = datatomodel2 %>%
+  filter(Treatment == "HW") %>%
+  filter(StateVar == "M") %>%
+  select(time, Biomass) %>%
+  rename("M" = Biomass) %>%
+  as.data.frame()
+
+DataN = datatomodel2 %>%
+  filter(Treatment == "HW") %>%
+  filter(StateVar == "M") %>%
+  select(time, Biomass) %>%
+  rename("N" = Biomass) %>%
+  as.data.frame()
+
+Objective <- function(x) {
+  PARS[] <- x
+  out = solveBuchkowski(x)
+  Cost = modCost(obs = DataW, model = out)
+  Cost = modCost(obs = DataP, model = out, cost = Cost)
+  Cost = modCost(obs = DataH, model = out, cost = Cost)
+  Cost = modCost(obs = DataM, model = out, cost = Cost)
+  return(modCost(obs = DataN, model = out, cost= Cost))
+}
+
+Objective(PARS)
+
+sF <- sensFun(func = Objective, parms = PARS, varscale = 1)
+
+Coll <- collin(sF)
+
+plot(sF)
+
+plot(subset(Coll, collinearity != Inf), ylim = c(1,100))
+abline(h = 20, col = "red")
+
 # Fit the 1 plant species model to actual data ----
 
  rootfun <- function(Time, State, Pars) {
@@ -295,7 +326,7 @@ for(i in 1:length(toplot)){
 
 custom_modCost <- function(paramscur1, datatofit, otpt = "Cost"){
   
-  paramscur = c(paramscur1, AAT = 1)
+  paramscur = c(exp(paramscur1), AAT = 1)
   
   # Run the model steady-state
   runout_full_0 <- ode(y = yint_base1, times = 1:10000, parms = paramscur, 
@@ -385,25 +416,12 @@ custom_modCost <- function(paramscur1, datatofit, otpt = "Cost"){
   
 }
 
-custom_modCost(params[-21], datatomodel2)
+custom_modCost(log(params[-25]), datatomodel2)
 
-fit_test = optim(par = paramsfit, fn = custom_modCost,
-                 datatofit = datatomodel2,
-                 lower = rep(0, 20),
-                 upper = c(1,1,1,2000,1,
-                            1,2000, 1,1,1,
-                            1,1,1,10,1,
-                            1,1,1,1,1))
+fit_test = optim(par = log(params[-25]), fn = custom_modCost,
+                 datatofit = datatomodel2)
 
 write.csv(fit_test$par, "par_fit.csv")
-
-paramsfit = params[1:20]
-paramsfit[1:20] = read.csv("par_fit.csv")$x[1:20]
-
-datafit = custom_modCost(paramsfit, datatomodel2, otpt = "Other")
-
-debugonce(custom_modCost)
-
 
 if(verbose){
 
