@@ -22,11 +22,11 @@ NSLM <- function(t, y, pars){
     Am = 1/(484.8603) * exp(0.063*(Temp - 273.15) + 5.47) # Based on Wieder et al. 2013
     
     dH = eh*Aw*khp0*H*P - th*H*H
-    dP = Ap*kpx0*P*X - tp*P*P - Aw*khp0*H*P
+    dP = Ap*kpx0*P*X - tp*P - Aw*khp0*H*P
     dX = X0 - qx*X - Ap*kpx0*P*X + jm*M
     dM = Am*rm*M + Am*kml0*M*L - tm*M*M - qm*M - jm*M
     dW = Aw*rw*W + Aw*kwl0*W*L - tw*W*W
-    dL = tw*W*W + tm*M*M + th*H*H + tp*P*P - Am*kml0*M*L - Aw*kwl0*W*L - ql*L
+    dL = tw*W*W + tm*M*M + th*H*H + tp*P - Am*kml0*M*L - Aw*kwl0*W*L - ql*L
     
     return(list(c(dH, dP, dX, dW, dM, dL)))
     
@@ -34,28 +34,57 @@ NSLM <- function(t, y, pars){
 }
 
 params <-c(eh = 0.5,
-           khp0 = 0.01,
-           th = 0.1,
+           khp0 = 0.1,
            kpx0 = 5,
-           tp = 0.05,
-           X0 = 0.5,
+           X0 = 1,
            qx = 0.1,
            jm = 0.1,
            kwl0 = 0.1,
-           rw = 0.05,
-           tw = 0.1,
+           rw = 0.01,
            kml0 = 0.1,
            rm = 0.05,
            tm = 0.1,
            qm = 0.1,
            ql = 0.1,
+           tp = 0.1,#1/0.0510,
+           tw = 1/14.36,
+           th = 1/0.0644,
            AAT = 1)
 
-y1 = c(H=0.0149,P=10.7,X=0.192,W=7.18,M=6.73,L=26)
+(RS = runsteady(y = y1, func = NSLM, parms = params)$y)
 
-plot(ode(y = y1, times = 1:365*5, func = NSLM, parms = params))
+y4 = y3 = y2 = y1 = RS
 
-runsteady(y = y1, func = NSLM, parms = params)$y
+y2["H"] = 0
+y3["W"] = 0
+y4[c("H", "W")] = 0
+
+params4 = params3 = params2 = params
+
+params2[c("khp0","th")] = 0
+params3[c("kwl0", "rw", "tw")] = 0
+params4[c("khp0", "kwl0", "rw", "tw", "th")] = 0
+
+out1 = ode(y = y1, times = 1:365*5, func = NSLM, parms = params)
+out2 = ode(y = y2, times = 1:365*5, func = NSLM, parms = params2)
+out3 = ode(y = y3, times = 1:365*5, func = NSLM, parms = params3)
+out4 = ode(y = y4, times = 1:365*5, func = NSLM, parms = params4)
+
+rbind(out1, out2, out3, out4) %>%
+  as_tibble() %>%
+  mutate(Treatment = rep(c("HW", "W", "H", "N"), each= 365)) %>%
+  gather(-time, -Treatment, key = StateVar, value=Model) %>%
+  ggplot(aes(x=time, y=Model, color = Treatment)) +
+  geom_line() + 
+  facet_wrap(.~StateVar, scales = "free") + theme_classic()
+
+rbind(runsteady(y = y1, func = NSLM, parms = params)$y,
+      runsteady(y = y2, func = NSLM, parms = params2)$y,
+      runsteady(y = y3, func = NSLM, parms = params3)$y,
+      runsteady(y = y4, func = NSLM, parms = params4)$y)
+
+sort(unique(datatomodel2$time))/365
+
 
 # ... Functions for replicating the treatments ----
 

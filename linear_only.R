@@ -19,7 +19,7 @@ NSLM <- function(t, y, pars){
     dX = Ix - q*X - Ap*kpx0*X - ksx*X - Am*kmx0*X + kxw*W + kxs*S + kxm*M + kxl*L
     dW = Aw*kws0*S + Aw*kwm0*M + Aw*kwl0*L - kxw*W - klw*W
     dS = ksx*X + ksm*M + ksl*L - kxs*S - Aw*kws0*S - kms0*S
-    dM = Am*kmx0*X + kms0*S + kml0*L - kxm*M - Aw*kwm0*M - ksm*M
+    dM = Am*kmx0*X + Am*kms0*S + Am*kml0*L - kxm*M - Aw*kwm0*M - ksm*M
     dL = klh*H + klp*P + klw*W - kxl*L - Aw*kwl0*L - ksl*L - kml0*L- q*L
     
     return(list(c(dH, dP, dX, dW, dS, dM, dL)))
@@ -181,9 +181,9 @@ endpar %>%
 
 which(fit == min(fit))
 
-EQM(endpar[80,])
+EQM(endpar[68,])
 
-saveRDS(endpar[80,],"Data/parameters.Rds")
+saveRDS(endpar[68,],"Data/parameters.Rds")
 
 # ... Functions for replicating the treatments ----
 
@@ -334,34 +334,85 @@ Objective <- function(PAR){
 }
 
 system.time(
-  cost1 <- Objective(PAR)
+  cost1 <- Objective(guess)
 )
 
 system.time(
   fit1 <- modFit(f = Objective, p = guess, lower = 0)
 )
 
-# Time: 687.498
+# Time: 1626.891
 
-system.time(
-  cost2 <- Objective(fit1$par)
-)
+postfit <- function(PAR){
+  ystable = EQM(PAR)
+  ok = 1
+  while(ok > 1e-4){
+    saf = ode(y = ystable, times = 1:100*365, 
+              func = NSLM, parms = PAR)
+    ystable = saf[99,-1]
+    ok = sum(abs(saf[99,-1] - saf[98,-1]))
+  }
+  
+  outRt = ode(y=ystable,times = 1:tmax2, 
+              func=NSLM, 
+              parms=PAR)
+  
+  outRmW = ode(y=ystable,times = 1:tmax2, 
+               func=NSLM, parms=PAR,
+               events = list(data=eshock_WE))
+  
+  outHW = ode(y=ystable,times = 1:tmax2, 
+              func=NSLM, parms=PAR,
+              events = list(data=eadd))
+  
+  outH = ode(y=ystable,times = 1:tmax2, 
+             func=NSLM, parms=PAR,
+             events = list(data=eshock))
+  
+  ystable["H"] = 0
+  PAR_noH = PAR
+  
+  PAR_noH[c("khp0", "klh")] = 0
+  
+  outW = ode(y=ystable,times = 1:tmax2, 
+             func=NSLM, parms=PAR_noH,
+             events = list(data=eadd))
+  
+  outN = ode(y=ystable,times = 1:tmax2, 
+             func=NSLM, parms=PAR_noH,
+             events = list(data=eshock))
+  
+  outRmH = ode(y=ystable,times = 1:tmax2, 
+               func=NSLM, parms=PAR_noH)
 
-cost2$residuals %>%
-  as_tibble() %>%
-  ggplot(aes(x = mod, y = obs)) +
-  geom_point() + 
-  facet_wrap(.~name, scales="free") + theme_classic()
+  return(rbind(outRt, outRmW, outRmH, outHW, outH,
+               outW,outN))
+  
+}
 
-# Almost no variation in the model output, but large empirical variation
+pf1 <-postfit(fit1$par)
 
-cost2$residuals %>%
-  as_tibble() %>%
-  ggplot(aes(x = x, y = obs)) +
-  geom_point() + 
-  geom_point(aes(x = x, y = mod), col="red") + 
-  facet_wrap(.~name, scales="free") + theme_classic()
+pf1 <- as.data.frame(pf1)
 
+pf1[,"Treatment"] = rep(c("Rt", "RmW", "RmH", "HW", "H",
+                          "W","N"), each = dim(pf1)[1]/7)
+
+datatomodel2 %>%
+  mutate(Treatment = ifelse(Treatment =="RtH", "Rt", Treatment)) %>%
+  mutate(StateVar = ifelse(StateVar =="N", "X", StateVar)) %>%
+  group_by(time, Treatment, StateVar) %>%
+  summarize(Expt = mean(Biomass)) %>%
+  left_join(
+    pf1 %>% as_tibble() %>%
+      gather(-time, -Treatment, key = StateVar, value = Model)
+  ) %>%
+  ggplot(aes(x=Model, y=Expt, color=Treatment)) +
+  geom_point() + facet_wrap(.~StateVar, scales="free")
+
+pf1 %>% as_tibble() %>%
+  gather(-time, -Treatment, key = StateVar, value = Model) %>%
+  ggplot(aes(x=time, y=Model, color=Treatment)) +
+  geom_line() + facet_wrap(.~StateVar, scales="free")
 
 # Try a second guess to see how robust the fit is
 
@@ -371,6 +422,44 @@ system.time(
   fit2 <- modFit(f = Objective, p = guess2, lower = 0)
 )
 
-# Time: 
+# Time: 3168.886
 
-(fit1$par-fit2$par)/fit1$par
+round(100*(fit1$par-fit2$par)/fit1$par)
+
+pf2 <-postfit(fit2$par)
+
+pf2 <- as.data.frame(pf2)
+
+pf2[,"Treatment"] = rep(c("Rt", "RmW", "RmH", "HW", "H",
+                          "W","N"), each = dim(pf2)[1]/7)
+
+datatomodel2 %>%
+  mutate(Treatment = ifelse(Treatment =="RtH", "Rt", Treatment)) %>%
+  mutate(StateVar = ifelse(StateVar =="N", "X", StateVar)) %>%
+  group_by(time, Treatment, StateVar) %>%
+  summarize(Expt = mean(Biomass)) %>%
+  left_join(
+    pf2 %>% as_tibble() %>%
+      gather(-time, -Treatment, key = StateVar, value = Model)
+  ) %>%
+  ggplot(aes(x=Model, y=Expt, color=Treatment)) +
+  geom_point() + facet_wrap(.~StateVar, scales="free")
+
+pf2 %>% as_tibble() %>%
+  gather(-time, -Treatment, key = StateVar, value = Model) %>%
+  ggplot(aes(x=time, y=Model, color=Treatment)) +
+  geom_line() + facet_wrap(.~StateVar, scales="free")
+
+
+# Compare two models (not doing exactly the same things...)
+pf1 %>% as_tibble() %>%
+  gather(-time, -Treatment, key = StateVar, value = Model1) %>%
+  left_join(
+    pf2 %>% as_tibble() %>%
+      gather(-time, -Treatment, key = StateVar, value = Model2)
+  ) %>%
+  mutate(time2 = time %% 100) %>%
+  filter(time2 == 0) %>%
+  ggplot(aes(x=Model1, y=Model2, color=Treatment)) +
+  geom_point() + facet_wrap(.~StateVar, scales="free") +
+  theme_classic()
