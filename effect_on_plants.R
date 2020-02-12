@@ -28,12 +28,23 @@ variable_names <- c(
 
 ## Get and clean the parameter sets and the stable values for each simulation
 
-partoplant = par2 %>% 
-              as_tibble() %>%
-              filter(Best == "Yes") %>% # select the best runs
-              select(PARS, Run, NPAR) %>%
-              spread(key = NPAR, value = PARS) %>%
-              as.data.frame()
+selectrandom = F
+if(selectrandom){
+  partoplant = par2 %>% 
+    as_tibble() %>%
+    right_join(data.frame(Run = sample(unique(par2$Run), 50))) %>%
+    select(PARS, Run, NPAR) %>%
+    spread(key = NPAR, value = PARS) %>%
+    as.data.frame()
+}else{
+  partoplant = par2 %>% 
+    as_tibble() %>%
+    filter(Best == "Yes") %>% # select the best runs
+    select(PARS, Run, NPAR) %>%
+    spread(key = NPAR, value = PARS) %>%
+    as.data.frame()
+}
+
 
 stabletoplant = stable1 %>% 
                   as_tibble() %>%
@@ -332,9 +343,13 @@ t2-t1
 
 outdata = do.call("rbind", out1)
 
-saveRDS(outdata, file = "Data/plantdata_31Oct2019.rds")
+saveRDS(outdata, file = paste0("Data/plantdata_",Sys.Date(),"notBest.rds"))
 
-dir.create(paste0("effect_plots_from_",Sys.Date()))
+outdata = readRDS("Data/plantdata_31Oct2019_Best.rds")
+
+foldername = "effect_plots_Best"
+
+dir.create(paste0(foldername,Sys.Date()))
 
 # Hypothesis #2: Within variation is large relative to across variation
 
@@ -355,13 +370,13 @@ library(vegan)
 pca1 = rda(pcadata[,c(3:9)])
 summary(pca1)
 
-png(paste0("effect_plots_from_",Sys.Date(),"/","PCA_whyRandS_",Sys.Date(),".png"), width=8, height=8, units="in", res=300)
+png(paste0(foldername,Sys.Date(),"/","PCA_whyRandS_",Sys.Date(),".png"), width=8, height=8, units="in", res=300)
 biplot(pca1, type = c("text", "points"),
        xlab = "Component 1 (70%)",
        ylab = "Component 2 (25%)")
 dev.off()
 
-png(paste0("effect_plots_from_",Sys.Date(),"/","RunvsTreatment_",Sys.Date(),".png"), width=8, height=8, units="in", res=300)
+png(paste0(foldername,Sys.Date(),"/","RunvsTreatment_",Sys.Date(),".png"), width=8, height=8, units="in", res=300)
 pcadata %>%
   ggplot(aes(x=S, y=R)) + 
   geom_line(aes(group=as.character(Run)), col="grey", alpha=0.8) +
@@ -417,7 +432,7 @@ plotdata_v2 <- plotdata_v1 %>%
 # part 2 is the data with the actual Runs to select
 
 #Plot the result over years
-png(paste0("effect_plots_from_",Sys.Date(),"/","Effectsovertime_",Sys.Date(),".png"), width=8, height=8, units="in", res=300)
+png(paste0(foldername,Sys.Date(),"/","Effectsovertime_",Sys.Date(),".png"), width=8, height=8, units="in", res=300)
 plotdata_v1 %>% 
   spread(key=QT, value=Size) %>%
   ggplot(aes(x=time, y=median,color=Effect)) +
@@ -435,7 +450,7 @@ plotdata4 = plotdata_v2 %>% filter(time > 3.5 & time < 5) %>%
 plotdata100 = plotdata_v2 %>% filter(time > 99) %>%
   filter(StateVar %in% c("P", "R", "S", "U"))
 
-png(paste0("effect_plots_from_",Sys.Date(),"/","clean_IEovertime_earthworm_",Sys.Date(),".png"), width=8, height=6, units="in", res=300)
+png(paste0(foldername,Sys.Date(),"/","clean_IEovertime_earthworm_",Sys.Date(),".png"), width=8, height=6, units="in", res=300)
 plotdata_v2 %>%
   filter(StateVar %in% c("P", "R", "S", "U")) %>%
   ggplot(aes(x=EOW1median, y=IEmedian, color=Species)) +
@@ -456,7 +471,7 @@ dev.off()
 plotdata4 = plotdata_v2 %>% filter(time > 3.5 & time < 5)
 plotdata100 = plotdata_v2 %>% filter(time > 99)
 
-png(paste0("effect_plots_from_",Sys.Date(),"/","IEovertime_earthworm_",Sys.Date(),".png"), width=8, height=8, units="in", res=300)
+png(paste0(foldername,Sys.Date(),"/","IEovertime_earthworm_",Sys.Date(),".png"), width=8, height=8, units="in", res=300)
 plotdata_v2 %>%
   ggplot(aes(x=EOW1median, y=IEmedian, color=Species)) +
   geom_vline(xintercept=0,linetype = "dashed", color="grey") +
@@ -473,7 +488,7 @@ plotdata_v2 %>%
   scale_color_manual(values=c("red","black"))
 dev.off()
 
-png(paste0("effect_plots_from_",Sys.Date(),"/","IEovertime_grasshopper_",Sys.Date(),".png"), width=8, height=8, units="in", res=300)
+png(paste0(foldername,Sys.Date(),"/","IEovertime_grasshopper_",Sys.Date(),".png"), width=8, height=8, units="in", res=300)
 plotdata_v2 %>%
   ggplot(aes(x=EOH1median, y=IEmedian, color=Species)) +
   geom_vline(xintercept=0,linetype = "dashed", color="grey") +
@@ -490,7 +505,7 @@ plotdata_v2 %>%
   scale_color_manual(values=c("red","black"))
 dev.off()
 
-png(paste0("effect_plots_from_",Sys.Date(),"/","PlantCommunity_n100_",Sys.Date(),".png"), width=8, height=8, units="in", res=300)
+png(paste0(foldername,Sys.Date(),"/","PlantCommunity_n100_",Sys.Date(),".png"), width=8, height=8, units="in", res=300)
 outdata %>% as_tibble() %>% filter(time > (100-1)*365) %>%
   select(R1:P3, Treatment, Species, Run) %>%
   gather(-Treatment,-Species,-Run, key= Pool, value=Size) %>%
@@ -508,7 +523,7 @@ outdata %>% as_tibble() %>% filter(time > (100-1)*365) %>%
   theme(legend.position = "top")
 dev.off()
 
-png(paste0("effect_plots_from_",Sys.Date(),"/","PlantCommunity_n4_",Sys.Date(),".png"), width=8, height=8, units="in", res=300)
+png(paste0(foldername,Sys.Date(),"/","PlantCommunity_n4_",Sys.Date(),".png"), width=8, height=8, units="in", res=300)
 outdata %>% as_tibble() %>% filter(time > 3.5*365 & time < 5*365) %>%
   select(R1:P3, Treatment, Species, Run) %>%
   gather(-Treatment,-Species,-Run, key= Pool, value=Size) %>%
@@ -539,7 +554,7 @@ variable_names_trends = c("1" = "Base species",
                           "W" = "Earthworm",
                           "HW"= "Grasshopper \n and Earthworm")
 
-png(paste0("effect_plots_from_",Sys.Date(),"/","PlantCommunity_trends_",Sys.Date(),".png"), width=8, height=8, units="in", res=300)
+png(paste0(foldername,Sys.Date(),"/","PlantCommunity_trends_",Sys.Date(),".png"), width=8, height=8, units="in", res=300)
 outdata %>% as_tibble() %>%
   select(time, R1:P3, Treatment, Species, Run) %>%
   gather(-time, -Treatment,-Species,-Run, key= Pool, value=Size) %>%
@@ -586,7 +601,7 @@ CWM =  outdata %>% as_tibble() %>% filter(time > (100-1)*365) %>%
   mutate(CW = P1*PAR +P2*PAR*mod2 + P3*PAR*mod3) %>%
   select(Treatment, Run, NPAR, CW)
 
-png(paste0("effect_plots_from_", Sys.Date(),"/","PlantCommunityWeightedMean_",Sys.Date(),".png"), width=8, height=8, units="in", res=300)
+png(paste0(foldername, Sys.Date(),"/","PlantCommunityWeightedMean_",Sys.Date(),".png"), width=8, height=8, units="in", res=300)
 CWM %>%
   ggplot(aes(x=Treatment, y=CW)) + 
   geom_jitter(aes(color=Run), width = 0.2, height=0) +
@@ -603,7 +618,7 @@ variable_names3 <- c("KN_mod" = "Plant~Half~Saturation~(K[NP])",
                      "VN_mod" = "Plant~Max~Uptake~(V[NP]^0)",
                      "VH_mod" = "Herbivory~Rate~(V[HP])")
 
-png(paste0("effect_plots_from_",Sys.Date(),"/","clean_PlantCommunityWeightedMean_",Sys.Date(),".png"), 
+png(paste0(foldername,Sys.Date(),"/","clean_PlantCommunityWeightedMean_",Sys.Date(),".png"), 
     width=10, height=4, units="in", res=300)
 CWM %>% filter(NPAR %in% c("VH_mod", "VN_mod", "KN_mod")) %>%
   ggplot(aes(x=Treatment, y=CW)) + 
@@ -641,7 +656,7 @@ variable_names4 <- c("KN_mod" = "K[NP]",
                      "GPP" = "Gross~Primary~Production",
                      "Nmin" = "Mineralization")
 
-png(paste0("effect_plots_from_",Sys.Date(),"/","effect_of_plant_PAR_",Sys.Date(),".png"), 
+png(paste0(foldername,Sys.Date(),"/","effect_of_plant_PAR_",Sys.Date(),".png"), 
     width=8, height=11, units="in", res=300)
 part1 %>% 
   filter(Species=="Single" & Effect == "IE") %>%
@@ -696,7 +711,7 @@ compdata_b <- compdata_a %>% arrange(desc(MS)) %>%
   select(-Effect, -QT) %>%
   spread(key=EFQT, value=Diff)
 
-png(paste0("effect_plots_from_",Sys.Date(),"/","MultSingSP_",Sys.Date(),".png"), 
+png(paste0(foldername,Sys.Date(),"/","MultSingSP_",Sys.Date(),".png"), 
     width=8, height=8, units="in", res=300)
 compdata_b %>% mutate(time2 = round(time)) %>%
   filter(time2 %in% seq(0, 100, by=5))%>% 

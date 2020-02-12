@@ -48,7 +48,7 @@ data3 <- data2 %>% select(-PARS, -YSTABLE, -Run2) %>% filter(time!=-1) %>% renam
 # calculate median absolute deviation (instead of standard deviation) for unique model runs
 # based on van der Vaart et al. 2015
 
-useexptdata = T
+useexptdata = F
 useextradata = T
 
 if(useexptdata){
