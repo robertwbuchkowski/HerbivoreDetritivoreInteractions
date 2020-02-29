@@ -61,54 +61,43 @@ singlemodel <-function(t, y,pars){
   
   with(as.list(c(pars,y)),{
     
+    TEMP = LTtemp(t %% 365)
+    
     # Model of earthworm growth. From ASA Johnston
-    A_W = exp(-Ea/Kappa*(1/LTtemp(t %% 365)-1/Tref_W)) 
+    A_W = exp(-Ea/Kappa*(1/TEMP-1/Tref_W)) 
     
     # Model of temperature sensitive plant growth from FENG 1990
-    A_P1 = A_P_mod*exp(-B/LTtemp(t %% 365))/(1 + (B/(D-B))*exp(D*(1/(Tref_P) - 1/LTtemp(t %% 365))))
-    
-    # no AG growth when freezing
-    A_P = ifelse(LTtemp(t %% 365) > 273.15, A_P1, 0)
-    
-    # AG rapid death when freezing
-    alpha_A2 = ifelse(LTtemp(t %% 365) > 273.15, alpha_A, alpha_A*WF) 
-    
-    # Plant root dynamics slow in winter
-    alpha_R2 = ifelse(LTtemp(t %% 365) > 273.15, alpha_R, alpha_R/WF) 
-    
-    Vpf_R = ifelse(LTtemp(t %% 365) > 273.15, Vpf, Vpf/WF) 
+    A_P = exp(-B/TEMP)/(1 + (B/(D-B))*exp(D*(1/(Tref_P) - 1/LTtemp(t %% 365))))
     
     # Modeled Herbivore death
-    th2 = ifelse(LTtemp(t %% 365) > 273.15, 
-                 ifelse(H < Hmin, 0, th*WF), th)
-    Vhp2 = ifelse(LTtemp(t %% 365) > 273.15, 0, Vhp)
+    th = ifelse(TEMP > 273.15, 
+                 ifelse(H < Hmin, 0, th0*WF), th0)
+    Vhp = ifelse(TEMP > 273.15, 0, Vhp0)
     
     # Modeled microbial dynamics MIMICS
-    tempC = (LTtemp(t %% 365)-273.15)
+    tempC = (TEMP-273.15)
     Vlm = exp(Vslope*tempC + Vint)*Vlm_mod
     Vsm = exp(Vslope*tempC + Vint)*Vsm_mod
     Klm = exp(Kslope*tempC + Kint)*Klm_mod
     Ksm = exp(Kslope*tempC + Kint)*Ksm_mod
     
-    dL = alpha_A2*PA*PA + alpha_R2*P*P + (1-SUEh)*Vhp2*H*PA + th2*H+ A_W*tw*W*W -Vlm*L*M/(Klm + M) - A_W*Vlw*L*W
+    dL = tp*P*P + (1-SUEh)*Vhp*H*P + th*H + A_W*tw*W*W - Vlm*L*M/(Klm + M) - A_W*Vlw*L*W
     
     dM = SUE*(Vlm*L*M/(Klm + M) + Vsm*S*M/(Ksm + M)) - tm*M - SUEwm*A_W*Vsw*W*M
     
     dW = SUEwl*A_W*Vlw*L*W + SUEws*A_W*Vsw*S*W + SUEwm*A_W*W*Vsw*M - A_W*tw*W*W
     
-    dN = IN - q*N - fi*N + fo*S + (1-SUE)*(Vlm*L*M/(Klm + M) + Vsm*S*M/(Ksm + M)) - Vpf_R*N*P/(Kpf+N)
+    dN = IN - q*N - fi*N + fo*S + (1-SUE)*(Vlm*L*M/(Klm + M) + Vsm*S*M/(Ksm + M)) - A_P*Vpf*N*P/(Kpf+N)
     
     dS = tm*M + (1-SUEwl)*A_W*Vlw*L*W - Vsm*S*M/(Ksm + M) - SUEws*A_W*Vsw*S*W + fi*N - fo*S
     
-    dP = Vpf_R*N*P/(Kpf+N) - alpha_R2*P*P - A_P*P
+    dP = A_P*Vpf*N*P/(Kpf+N) - tp*P*P - Vhp*H*P
     
-    dPA = A_P*P - Vhp2*H*PA - alpha_A2*PA*PA
+    dH = SUEh*Vhp*H*P - th*H
     
-    dH = SUEh*Vhp2*H*PA - th2*H
+    dy = c(dP, dL, dM, dW, dN, dS, dH)
     
-    dy = c(dPA, dP, dL, dM, dW, dN, dS, dH)
-    
-    return(list(c(dy)))
+    return(list(c(dy), A_P = A_P))
     
   }
   )
@@ -126,10 +115,10 @@ params<- c(Vlm_mod = 8e-5,
            Ksm_mod = 0.143,
            Vlw = 2.4e-06,#2.4e-06, #2.4e-05 before correction to Type I
            Vsw = 4.1e-05,#4.1e-05,#0.00462 before correction to Type I
-           Vpf = 0.03, #From JRS project
+           Vpf = 0.03/0.00018, #From JRS project
            Kpf = 0.006, #From JRS project
            A_P_mod = 0.005*639.0611,#0.008*639.0611,
-           Vhp = 0.03, #From JRS project 0.0025 - 0.0029
+           Vhp0 = 0.0025, #From JRS project 0.0025 - 0.0029
            SUEh = 0.7,
            SUE = 0.50,
            SUEws = 0.01,
@@ -139,11 +128,10 @@ params<- c(Vlm_mod = 8e-5,
            IN= 0.02,
            tm = 0.05,
            tw = 0.000015,
-           th = 0.0001, # based on surivival from Schmitz lab experiments
+           th0 = 0.0001, # based on surivival from Schmitz lab experiments
            fi=0.6, #0.6,
            fo=0.002, #0.003,
-           alpha_R = 0.00008, #0.00008,
-           alpha_A = 0.0003,
+           tp = 0.00008, #0.00008,
            Ea = 0.25,
            Kappa = 8.62e-05,
            Tref_W = 288.15,
@@ -159,8 +147,7 @@ params<- c(Vlm_mod = 8e-5,
 
 # write.csv(params, paste("parameters_",format(Sys.time(), "%Y-%m-%d_%H"), ".csv", sep=""))
 
-yint= c(PA=1, # WE plots
-        P=95.238095, # WE with R:S ratio from Buchkowski et al. 2018
+yint= c(P=95.238095, # WE with R:S ratio from Buchkowski et al. 2018
         L=25.526097, # WE plots with C:N ratio from files
         M=7.160995, # WE plots
         W=9.639477, # WE plots
@@ -170,13 +157,16 @@ yint= c(PA=1, # WE plots
 
 (ystable = stode(y=yint, func=singlemodel, parms=params)$y)
 
-
 # timelist = sort(c(seq(206,365*1000,365),seq(1,365*1000,365)))
 initialrun = ode(y=yint,times = 1:(365*10), func=singlemodel, parms=params)
 
 initialrun[365*10,]
 
-plot(initialrun)
+initialrun %>% as.data.frame() %>% as_tibble() %>%
+  gather(-time, key = StateVar, value = Biomass) %>%
+  ggplot(aes(x= time, y= Biomass)) + geom_line() + 
+  facet_wrap(.~StateVar, scale = "free") + theme_classic()
+
 
 yint3 = initialrun[365*10,-1]
 
