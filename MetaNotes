@@ -1,0 +1,3 @@
+# Notes Feb 28 2020
+
+Issue with the current model is that the plant root growth doesn't benefit from AG growth, so there is no feedback from AG to root growth that matters for plant in the following year.
