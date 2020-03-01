@@ -2,60 +2,17 @@ require(FME)
 require(tidyverse)
 require(lubridate)
 
-# Load in data ----------------------------------------------------
+# Load in data and functions ----------------------------------------------------
 
-# ....See load_climate_data for the parameterization of this function -----
 LTtemp = function(doy){
   
   -12.8244*cos(2*3.14/365*doy-0.3666)+281.9846
   
 }
 
-# ....Sampling and treatment data frames --------------------------------------
-
-hopsamp = seq(0,3,1)*365 + 266
-soilsamp = c(seq(1,3,1)*365 + 170, seq(0,3,1)*365 + 300)
-wormsamp = c(114, 311, c(114, 309, 314)+365, c(99, 280, 323, 114)+365*2)
-
-samp = unique(c(hopsamp, soilsamp, wormsamp))
-
-timestosample = samp[order(samp)]
-
-rm(hopsamp, soilsamp, wormsamp,samp)
-
-# Creates dataframes that can be used as events in ODE simulations
-
-timelist2_expt = sort(c(311,674,1047,114,474,844)) + 365
-
-tmax2_expt = 1200 + 365
-
-tmax2 = ifelse(runlong, tmax2_expt + 365*20,tmax2_expt)
-
-timelist2 = c(timelist2_expt, rep(seq(4,23, by=1), each=2)*365 + rep(c(121,305), 20))
-
-eshock_WE <- data.frame(var = rep("W", length(timelist2)),
-                        time =  timelist2,
-                        value = rep(0.65, length(timelist2)),
-                        method = rep("mult", length(timelist2)))
-
-
-eshock <- data.frame(var = c("P", "PA", "L", "W", rep("W", length(timelist2))),
-                     time =  c(rep(290, 4), timelist2),
-                     value = c(0.1, 0.1, 0.1, 0.05, rep(0.2, length(timelist2))),
-                     method = rep("mult", length(timelist2)+4))
-
-eadd <- data.frame(var = c("P", "PA", "L", "W", rep("W", length(timelist2))),
-                   time =  c(rep(290, 4), timelist2),
-                   value = c(0.1, 0.1, 0.1, 0.05, c(0,7.75, 5.73, 9.87, 6.9,0)*0.1, rep(0, 40)),
-                   method = c(rep("mult",4),rep("add", length(timelist2))))
-
-rm(timelist2_expt,timelist2)
-
-# ....Data to fit the model ------
-
 datatomodel2 = read_csv("Data/datatomodel2.csv")
 
-# Model spin-up 2.0 -----------------------------------------
+# Single Model -----------------------------------------
 
 singlemodel <-function(t, y,pars){
   
@@ -67,12 +24,11 @@ singlemodel <-function(t, y,pars){
     A_W = exp(-Ea/Kappa*(1/TEMP-1/Tref_W)) 
     
     # Model of temperature sensitive plant growth from FENG 1990
-    A_P = exp(-B/TEMP)/(1 + (B/(D-B))*exp(D*(1/(Tref_P) - 1/LTtemp(t %% 365))))
+    A_P = exp(-B/TEMP)/(1 + (B/(D-B))*exp(D*(1/(Tref_P) - 1/TEMP)))
     
     # Modeled Herbivore death
-    th = ifelse(TEMP > 273.15, th0, 
-                 ifelse(H < Hmin, 0, th0*WF))
-    Vhp = ifelse(TEMP < 273.15, 0, Vhp0)
+    # th = ifelse(TEMP > 273.15, th0, ifelse(H < Hmin, 0, th0*WF))
+    # Vhp = ifelse(TEMP < 273.15, 0, Vhp0)
     
     # Modeled microbial dynamics MIMICS
     tempC = (TEMP-273.15)
@@ -81,7 +37,7 @@ singlemodel <-function(t, y,pars){
     Klm = exp(Kslope*tempC + Kint)*Klm_mod
     Ksm = exp(Kslope*tempC + Kint)*Ksm_mod
     
-    dL = tp*P*P + (1-SUEh)*Vhp*H*P + th*H*H + tw*W*W - Vlm*L*M/(Klm + M) - A_W*Vlw*L*W - l*L
+    dL = tp*P*P + (1-SUEh)*A_W*Vhp*H*P + th*H*H + tw*W*W - Vlm*L*M/(Klm + M) - A_W*Vlw*L*W - l*L
     
     dM = SUE*(Vlm*L*M/(Klm + M) + Vsm*S*M/(Ksm + M)) - tm*M - SUEwm*A_W*Vsw*W*M
     
@@ -91,13 +47,13 @@ singlemodel <-function(t, y,pars){
     
     dS = tm*M + (1-SUEwl)*A_W*Vlw*L*W - Vsm*S*M/(Ksm + M) - SUEws*A_W*Vsw*S*W + fi*N - fo*S
     
-    dP = A_P*Vpf*N*P/(Kpf+N) - tp*P*P - Vhp*H*P
+    dP = A_P*Vpf*N*P/(Kpf+N) - tp*P*P - A_W*Vhp*H*P
     
-    dH = SUEh*Vhp*H*P - th*H*H
+    dH = SUEh*A_W*Vhp*H*P - th*H*H
     
     dy = c(dP, dL, dM, dW, dN, dS, dH)
     
-    return(list(c(dy), th = th))
+    return(list(c(dy)))
     
   }
   )
@@ -117,7 +73,7 @@ params<- c(Vlm_mod = 8e-5,
            Vsw = 4.1e-05,#4.1e-05,#0.00462 before correction to Type I
            Vpf = 0.03/0.00018, #From JRS project 0.03
            Kpf = 0.1, #From JRS project 0.006
-           Vhp0 = 0.0005, #From JRS project 0.0025 - 0.0029
+           Vhp = 0.0005, #From JRS project 0.0025 - 0.0029
            SUEh = 0.7,
            SUE = 0.50,
            SUEws = 0.01,
@@ -128,7 +84,7 @@ params<- c(Vlm_mod = 8e-5,
            l = 0,
            tm = 0.05,
            tw = 0.00002,
-           th0 = 1, # based on surivival from Schmitz lab experiments
+           th = 1, # based on surivival from Schmitz lab experiments
            fi=0.6, #0.6,
            fo=0.004, #0.003,
            tp = 0.0001, #0.00008,
@@ -138,14 +94,10 @@ params<- c(Vlm_mod = 8e-5,
            Tref_P = 297.65,
            B = 2493,
            D = 26712,
-           WF = 100,
-           Hmin = 0.01,
            Vslope = 0.063,
            Kslope = 0.007,
            Vint = 5.47,
            Kint = 3.19)
-
-# write.csv(params, paste("parameters_",format(Sys.time(), "%Y-%m-%d_%H"), ".csv", sep=""))
 
 yint= c(P=95.238095, # WE with R:S ratio from Buchkowski et al. 2018
         L=25.526097, # WE plots with C:N ratio from files
@@ -155,65 +107,69 @@ yint= c(P=95.238095, # WE with R:S ratio from Buchkowski et al. 2018
         S=134.845515, # my historical data
         H=0.009) # Schmitz et al. 1997 8-10/m2 * 0.0986 * 0.11
 
-100*(singlemodel(1, yint, params)[[1]]/yint)
+yts = 1000
 
-# (ystable = stode(y=yint, func=singlemodel, parms=params)$y)
+initialrun = ode(y=yint,times = seq(1,365*yts,1), func=singlemodel, parms=params)
 
-# zerochange <- function(ppp){
-#   ppp2 = exp(ppp)
-#   sum((singlemodel(1, yint, ppp2)[[1]]/yint)^2)
-# }
-# 
-# zerochange(log(params))
-# 
-# out <- optim(log(params), fn = zerochange)
-# 
-# params = exp(out$par)
-
-if(T){
-  params["Vhp0"] = 0
-  yint["H"] = 0
-}
-
-# timelist = sort(c(seq(206,365*1000,365),seq(1,365*1000,365)))
-initialrun = ode(y=yint,times = 1:(365*10), func=singlemodel, parms=params)
-
-initialrun[365*10,]
+100*(initialrun[(365*yts-182),-1] - initialrun[(365*yts-182-365),-1])/initialrun[(365*yts-182),-1]
 
 initialrun %>% as.data.frame() %>% as_tibble() %>%
+  filter(time > 365*(yts-5)) %>%
   gather(-time, key = StateVar, value = Biomass) %>%
   ggplot(aes(x= time, y= Biomass)) + geom_line() + 
   facet_wrap(.~StateVar, scale = "free") + theme_classic()
 
-initialrun = ode(y=yint,times = seq(1,365*100,1), func=singlemodel, parms=params)
+yint3 = initialrun[365*(yts-1),-1]
 
-initialrun %>% as.data.frame() %>% as_tibble() %>%
-  gather(-time, key = StateVar, value = Biomass) %>%
-  ggplot(aes(x= time, y= Biomass)) + geom_line() + 
-  facet_wrap(.~StateVar, scale = "free") + theme_classic()
+# ....Single model sampling and treatment data frames --------------------------------------
 
-yint3 = initialrun[365*99,-1]
+hopsamp = seq(0,3,1)*365 + 266
+soilsamp = c(seq(1,3,1)*365 + 170, seq(0,3,1)*365 + 300)
+wormsamp = c(114, 311, c(114, 309, 314)+365, c(99, 280, 323, 114)+365*2)
 
-if(T){
-  params["Vhp0"] = 0.0005
-  yint3["H"] = 0.009
-}
+samp = unique(c(hopsamp, soilsamp, wormsamp))
 
-initialrun = ode(y=yint3,times = 1:(365*10), func=singlemodel, parms=params)
+timestosample = samp[order(samp)]
 
-initialrun %>% as.data.frame() %>% as_tibble() %>%
-  gather(-time, key = StateVar, value = Biomass) %>%
-  ggplot(aes(x= time, y= Biomass)) + geom_line() + 
-  facet_wrap(.~StateVar, scale = "free") + theme_classic()
+rm(hopsamp, soilsamp, wormsamp,samp)
+
+# Creates dataframes that can be used as events in ODE simulations
+
+timelist2_expt = sort(c(311,674,1047,114,474,844)) + 365
+
+tmax2_expt = 1200 + 365
+
+runlong = T
+tmax2 = ifelse(runlong, tmax2_expt + 365*20,tmax2_expt)
+
+timelist2 = c(timelist2_expt, rep(seq(4,23, by=1), each=2)*365 + rep(c(121,305), 20))
+
+eshock_WE <- data.frame(var = rep("W", length(timelist2)),
+                        time =  timelist2,
+                        value = rep(0.65, length(timelist2)),
+                        method = rep("mult", length(timelist2)))
 
 
+eshock <- data.frame(var = c("P", "L", "W", rep("W", length(timelist2))),
+                     time =  c(rep(290, 3), timelist2),
+                     value = c(0.1, 0.1, 0.05, rep(0.2, length(timelist2))),
+                     method = rep("mult", length(timelist2)+3))
+
+eadd <- data.frame(var = c("P", "L", "W", rep("W", length(timelist2))),
+                   time =  c(rep(290, 3), timelist2),
+                   value = c(0.1, 0.1, 0.05, c(0,7.75, 5.73, 9.87, 6.9,0)*0.1, rep(0, 40)),
+                   method = c(rep("mult",3),rep("add", length(timelist2))))
+
+rm(timelist2_expt,timelist2)
+
+# Test one example
 
 output2_HW = ode(y=yint3,times = 1:tmax2_expt, func=singlemodel, parms=params,
                  events = list(data=eadd))
 
 plot(output2_HW)
 
-# Simulate ONE set of Treatments -------------------------------------------------
+# ..Simulations -------------------------------------------------
 
 # DOY is being used here instead of DOE
 
@@ -240,9 +196,12 @@ output2_0 = ode(y=yint3,times = 1:tmax2, func=singlemodel, parms=params,
 
 output = as.data.frame(rbind(output2_WE_Return,output2_WE_Remove,output2_HW, output2_H, output2_W, output2_0))
 
-colnames(output)[2:3] = c("P", "R")
+rm(output2_WE_Return,output2_WE_Remove,output2_HW, output2_H, output2_W, output2_0)
 
 output["Treatment"] = as.factor(rep(c("Rt","RmW","HW","H","W","N"), each=tmax2))
+
+# Convert plant biomass to aboveground rather than belowground
+output$P = output$P*0.1 # 10% of plant biomass is aboveground
 
 datatomodel2a = datatomodel2 %>% 
   group_by(time, Treatment, StateVar) %>%
@@ -295,9 +254,6 @@ rm(vec, vec2)
 
 ggplot(outdataCOMP, aes(x=Model, y=Biomass, color=Treatment)) + geom_abline(intercept=0, slope=1, lty=2) + geom_point() + geom_errorbar(data = outdataCOMP, aes(ymin = lower, ymax = upper, color=Treatment)) +  facet_wrap(c("StateVar"), scales="free") + theme_classic() + scale_color_manual(values=c("purple", "brown", "green", "blue", "pink", "red"),labels=c("None (Expt)", "Worm (Expt)", "Hopper (Expt)", "Both (Expt)", "Removal", "Addition")) + geom_text(data = ann_text,label = ann_text$R2, color="black", parse=T) + geom_blank(data = maxes %>% mutate(Model = BMmax, Biomass = BMmax, Treatment = "N") %>% bind_rows(maxes %>%  mutate(Model = 0, Biomass = 0, Treatment = "N")))
 
-
-# geom_errorbarh(data = outdataCOMP, aes(xmin = lower_x, xmax = upper_x, color=Treatment)) + 
-
 output2 = output
 
 output2["Treatment"] = rep(c("T5","T4","T3","T2","T1","T0"), each=tmax2)
@@ -306,78 +262,52 @@ as_tibble(output2) %>% gather(-time, -Treatment, key = StateVar, value = Biomass
 
 dev.off()
 
-# Simulate Treatments with multiple plant species -------
+# Save the single model output
+singleoutput = output
+rm(output)
+
+# Multiple Model -------
 
 multiplemodel <-function(t, y,pars){
   
   with(as.list(c(pars,y)),{
     
+    TEMP = LTtemp(t %% 365)
+    
     # Model of earthworm growth. From ASA Johnston
-    A_W = exp(-Ea/Kappa*(1/LTtemp(t %% 365)-1/Tref_W)) 
+    A_W = exp(-Ea/Kappa*(1/TEMP-1/Tref_W)) 
     
     # Model of temperature sensitive plant growth from FENG 1990
-    A_P1 = A_P_mod*exp(-B/LTtemp(t %% 365))/(1 + (B/(D-B))*exp(D*(1/(Tref_P) - 1/LTtemp(t %% 365))))
-    
-    # no AG growth when freezing
-    A_P = ifelse(LTtemp(t %% 365) > 273.15, A_P1, 0)
-    
-    # --- Plant 1 --- #
-    # AG rapid death when freezing
-    alpha_A2 = ifelse(LTtemp(t %% 365) > 273.15, alpha_A, alpha_A*WF) 
-    
-    # Plant root dynamics slow in winter
-    alpha_R2 = ifelse(LTtemp(t %% 365) > 273.15, alpha_R, alpha_R/WF) 
-    
-    Vpf_R = ifelse(LTtemp(t %% 365) > 273.15, Vpf, Vpf/WF) 
-    
-    # Modeled herbivory
-    Vhp2 = ifelse(LTtemp(t %% 365) > 273.15, 0, Vhp)
-    
-    # --- Plant 2 --- #
-    # AG rapid death when freezing
-    alpha_A22 = ifelse(LTtemp(t %% 365) > 273.15, alpha_A02, alpha_A02*WF) 
-    
-    # Plant root dynamics slow in winter
-    alpha_R22 = ifelse(LTtemp(t %% 365) > 273.15, alpha_R02, alpha_R02/WF) 
-    
-    Vpf_R2 = ifelse(LTtemp(t %% 365) > 273.15, Vpf2, Vpf2/WF) 
-    
-    # Modeled herbivory
-    Vhp22 = ifelse(LTtemp(t %% 365) > 273.15, 0, Vhp02)
+    A_P = exp(-B/TEMP)/(1 + (B/(D-B))*exp(D*(1/(Tref_P) - 1/TEMP)))
     
     # Modeled Herbivore death
-    th2 = ifelse(LTtemp(t %% 365) > 273.15, 
-                 ifelse(H < Hmin, 0, th*WF), th)
+    # th = ifelse(TEMP > 273.15, th0, ifelse(H < Hmin, 0, th0*WF))
+    # Vhp = ifelse(TEMP < 273.15, 0, Vhp0)
     
     # Modeled microbial dynamics MIMICS
-    tempC = (LTtemp(t %% 365)-273.15)
+    tempC = (TEMP-273.15)
     Vlm = exp(Vslope*tempC + Vint)*Vlm_mod
     Vsm = exp(Vslope*tempC + Vint)*Vsm_mod
     Klm = exp(Kslope*tempC + Kint)*Klm_mod
     Ksm = exp(Kslope*tempC + Kint)*Ksm_mod
     
-    dL = alpha_R22*P2*P2 + alpha_A22*PA2*PA2 + alpha_A2*PA*PA + alpha_R2*P*P + (1-SUEh)*(Vhp2*H*PA + Vhp22*H*PA2) + th2*H+ A_W*tw*W*W -Vlm*L*M/(Klm + M) - A_W*Vlw*L*W
+    dL = (tp1*P1*P1 + tp2*P2*P2) + (1-SUEh)*(A_W*Vhp1*H*P1 + A_W*Vhp2*H*P2) + th*H*H + tw*W*W - Vlm*L*M/(Klm + M) - A_W*Vlw*L*W - l*L
     
     dM = SUE*(Vlm*L*M/(Klm + M) + Vsm*S*M/(Ksm + M)) - tm*M - SUEwm*A_W*Vsw*W*M
     
-    dW = SUEwl*A_W*Vlw*L*W + SUEws*A_W*Vsw*S*W + SUEwm*A_W*W*Vsw*M - A_W*tw*W*W
+    dW = SUEwl*A_W*Vlw*L*W + SUEws*A_W*Vsw*S*W + SUEwm*A_W*W*Vsw*M - tw*W*W
     
-    dN = IN - q*N - fi*N + fo*S + (1-SUE)*(Vlm*L*M/(Klm + M) + Vsm*S*M/(Ksm + M)) - Vpf_R*N*P/(Kpf+N) - Vpf_R2*N*P2/(Kpf2+N)
+    dN = IN - q*N - fi*N + fo*S + (1-SUE)*(Vlm*L*M/(Klm + M) + Vsm*S*M/(Ksm + M)) - (A_P*Vpf1*N*P1/(Kpf1+N) + A_P*Vpf2*N*P2/(Kpf2+N))
     
     dS = tm*M + (1-SUEwl)*A_W*Vlw*L*W - Vsm*S*M/(Ksm + M) - SUEws*A_W*Vsw*S*W + fi*N - fo*S
-    # P1
-    dP = Vpf_R*N*P/(Kpf+N) - alpha_R2*P*P - A_P*P
     
-    dPA = A_P*P - Vhp2*H*PA - alpha_A2*PA*PA
+    dP1 = A_P*Vpf1*N*P1/(Kpf1+N) - tp1*P1*P1 - A_W*Vhp1*H*P1
     
-    #P2
-    dP2 = Vpf_R2*N*P2/(Kpf2+N) - alpha_R22*P2*P2 - A_P*P2
+    dP2 = A_P*Vpf2*N*P2/(Kpf2+N) - tp2*P2*P2 - A_W*Vhp2*H*P2
     
-    dPA2 = A_P*P2 - Vhp22*H*PA2 - alpha_A22*PA2*PA2
-    
-    dH = SUEh*(Vhp2*H*PA + Vhp22*H*PA2) - th2*H
-    
-    dy = c(dPA2, dP2, dPA, dP, dL, dM, dW, dN, dS, dH)
+    dH = SUEh*(A_W*Vhp1*H*P1 + A_W*Vhp2*H*P2) - th*H*H
+
+    dy = c(dP1, dP2, dL, dM, dW, dN, dS, dH)
     
     return(list(c(dy)))
     
@@ -391,34 +321,31 @@ params<- c(Vlm_mod = 8e-5,
            Ksm_mod = 0.143,
            Vlw = 2.4e-06,#2.4e-06, #2.4e-05 before correction to Type I
            Vsw = 4.1e-05,#4.1e-05,#0.00462 before correction to Type I
-           Vpf = 0.03, #From JRS project
-           Kpf = 0.006, #From JRS project
            
-           Vpf2 = 0.03*0.5, #From JRS project
-           Kpf2 = 0.006, #From JRS project
+           Vpf1 = 0.75*0.03/0.00018, # higher nitrogen uptake rate
+           Kpf1 = 0.1, #Same
+           Vhp1 = 0.95*0.0005, #higher herbivory
            
-           A_P_mod = 0.005*639.0611,#0.008*639.0611,
-           Vhp = 0.03, #From JRS project 0.0025 - 0.0029
-           
-           Vhp02 = 0.03*10, #From JRS project 0.0025 - 0.0029
+           Vpf2 = 0.25*0.03/0.00018, #lower nitrogen uptake rate
+           Kpf2 = 0.1, #Same
+           Vhp2 = 0.05*0.0005, #lower herbivory
            
            SUEh = 0.7,
            SUE = 0.50,
            SUEws = 0.01,
            SUEwl = 0.02,
            SUEwm = 0.3,
-           q = 0.2,
-           IN= 0.02,
+           q = 0.1,
+           IN= 0.01,
+           l = 0,
            tm = 0.05,
-           tw = 0.000015,
-           th = 0.0001, # based on surivival from Schmitz lab experiments
+           tw = 0.00002,
+           th = 1, # based on surivival from Schmitz lab experiments
            fi=0.6, #0.6,
-           fo=0.002, #0.003,
-           alpha_R = 0.00008, #0.00008,
-           alpha_A = 0.0003,
+           fo=0.004, #0.003,
            
-           alpha_R02 = 0.00008, #0.00008,
-           alpha_A02 = 0.0003,
+           tp1 = 0.0001, #0.00008,
+           tp2 = 0.0001, #0.00008,
            
            Ea = 0.25,
            Kappa = 8.62e-05,
@@ -426,41 +353,233 @@ params<- c(Vlm_mod = 8e-5,
            Tref_P = 297.65,
            B = 2493,
            D = 26712,
-           WF = 100,
-           Hmin = 0.01,
            Vslope = 0.063,
            Kslope = 0.007,
            Vint = 5.47,
            Kint = 3.19)
 
-
-yint= c(PA2 = 0.5,
-        P2 = 47.61905,
-        PA=0.5,
-        P=47.61905,
+yint= c(P1=95.238095/2, # WE
+        P2=95.238095/2, # WE
         L=25.526097, # WE plots with C:N ratio from files
         M=7.160995, # WE plots
         W=9.639477, # WE plots
         N=0.100000, # WE plots
         S=134.845515, # my historical data
-        H=0.01) # Schmitz et al. 1997 8-10/m2 * 0.0986 * 0.11
+        H=0.009) # Schmitz et al. 1997 8-10/m2 * 0.0986 * 0.11
 
-(ystable = stode(y=yint, func=multiplemodel, parms=params)$y)
+yts = 10
 
+# yint["H"] = 0
 
-# timelist = sort(c(seq(206,365*1000,365),seq(1,365*1000,365)))
-initialrun = ode(y=yint,times = 1:(365*10), func=multiplemodel, parms=params)
+initialrun = ode(y=yint,times = seq(1,365*yts,1), func=multiplemodel, parms=params)
 
-initialrun[365*10,]
+100*(initialrun[(365*yts-182),-1] - initialrun[(365*yts-182-365),-1])/initialrun[(365*yts-182),-1]
 
-initialrun %>% as_tibble() %>%
+initialrun %>% as.data.frame() %>% as_tibble() %>%
+  filter(time > 365*(yts-5)) %>%
   gather(-time, key = StateVar, value = Biomass) %>%
   ggplot(aes(x= time, y= Biomass)) + geom_line() + 
   facet_wrap(.~StateVar, scale = "free") + theme_classic()
-  
 
-yint3 = initialrun[365*10,-1]
+initialrun %>% as.data.frame() %>% as_tibble() %>%
+  filter(time %in% seq(1, 365*yts, 365)) %>%
+  mutate(time = time/365) %>%
+  gather(-time, key = StateVar, value = Biomass) %>%
+  ggplot(aes(x= time, y= Biomass)) + geom_line() + 
+  facet_wrap(.~StateVar, scale = "free") + theme_classic()
 
+yint3 = initialrun[365*(yts-1),-1]
+
+# ....Multiple model sampling and treatment data frames --------------------------------------
+
+hopsamp = seq(0,3,1)*365 + 266
+soilsamp = c(seq(1,3,1)*365 + 170, seq(0,3,1)*365 + 300)
+wormsamp = c(114, 311, c(114, 309, 314)+365, c(99, 280, 323, 114)+365*2)
+
+samp = unique(c(hopsamp, soilsamp, wormsamp))
+
+timestosample = samp[order(samp)]
+
+rm(hopsamp, soilsamp, wormsamp,samp)
+
+# Creates dataframes that can be used as events in ODE simulations
+
+timelist2_expt = sort(c(311,674,1047,114,474,844)) + 365
+
+tmax2_expt = 1200 + 365
+
+runlong = T
+tmax2 = ifelse(runlong, tmax2_expt + 365*20,tmax2_expt)
+
+timelist2 = c(timelist2_expt, rep(seq(4,23, by=1), each=2)*365 + rep(c(121,305), 20))
+
+eshock_WE <- data.frame(var = rep("W", length(timelist2)),
+                        time =  timelist2,
+                        value = rep(0.65, length(timelist2)),
+                        method = rep("mult", length(timelist2)))
+
+
+eshock <- data.frame(var = c("P1","P2", "L", "W", rep("W", length(timelist2))),
+                     time =  c(rep(290, 4), timelist2),
+                     value = c(0.1,0.1, 0.1, 0.05, rep(0.2, length(timelist2))),
+                     method = rep("mult", length(timelist2)+4))
+
+eadd <- data.frame(var = c("P1","P2", "L", "W", rep("W", length(timelist2))),
+                   time =  c(rep(290, 4), timelist2),
+                   value = c(0.1,0.1, 0.1, 0.05, c(0,7.75, 5.73, 9.87, 6.9,0)*0.1, rep(0, 40)),
+                   method = c(rep("mult",4),rep("add", length(timelist2))))
+
+rm(timelist2_expt,timelist2)
+
+# Test a similation
+
+output2_HW = ode(y=yint3,times = 1:tmax2_expt, func=multiplemodel, parms=params,
+                 events = list(data=eadd))
+
+output2_HW %>% as.data.frame() %>% as_tibble() %>%
+  gather(-time, key = StateVar, value = Biomass) %>%
+  ggplot(aes(x= time, y= Biomass)) + geom_line() + 
+  facet_wrap(.~StateVar, scale = "free") + theme_classic()
+
+# ..Simulations ----
+
+# DOY is being used here instead of DOE
+
+tmax2 = tmax2_expt + 365*20
+
+output2_WE_Return = ode(y=yint3,times = 1:tmax2, func=multiplemodel, parms=params)
+
+output2_WE_Remove = ode(y=yint3,times = 1:tmax2, func=multiplemodel, parms=params,
+                        events = list(data=eshock_WE))
+
+output2_HW = ode(y=yint3,times = 1:tmax2, func=multiplemodel, parms=params,
+                 events = list(data=eadd))
+
+output2_H = ode(y=yint3,times = 1:tmax2, func=multiplemodel, parms=params,
+                events = list(data=eshock))
+
+yint3["H"] = 0
+
+output2_W = ode(y=yint3,times = 1:tmax2, func=multiplemodel, parms=params,
+                events = list(data=eadd))
+
+output2_0 = ode(y=yint3,times = 1:tmax2, func=multiplemodel, parms=params,
+                events = list(data=eshock))
+
+output = as.data.frame(rbind(output2_WE_Return,output2_WE_Remove,output2_HW, output2_H, output2_W, output2_0))
+
+rm(output2_WE_Return,output2_WE_Remove,output2_HW, output2_H, output2_W, output2_0)
+
+output["Treatment"] = as.factor(rep(c("Rt","RmW","HW","H","W","N"), each=tmax2))
+
+# Joint plant biomass
+output[,"P"] = output$P1 + output$P2
+
+# Convert plant biomass to aboveground rather than belowground
+output$P = output$P*0.1 # 10% of plant biomass is aboveground
+
+# Save the single model output
+multipleoutput = output
+
+output$P1 = NULL
+output$P2 = NULL
+
+datatomodel2a = datatomodel2 %>% 
+  group_by(time, Treatment, StateVar) %>%
+  summarize(std = sd(Biomass), Biomass = mean(Biomass)) %>%
+  mutate(lower = Biomass - std, upper = Biomass + std) %>% 
+  filter(Treatment %in% c("Rt","RmW","HW","H","W","N")) %>%
+  ungroup()
+
+pdf(paste0("simplemodel_",Sys.Date(),"/Grahipcs_mult_",
+           round(100*(hour(Sys.time()) + (minute(Sys.time()))/60)),
+           ".pdf"), width=7, height=7)
+
+output %>% filter(time < tmax2_expt) %>% gather(-time, -Treatment, key = StateVar, value = Biomass) %>% ggplot() + geom_line(aes(x=time, y=Biomass), alpha=0.5) + theme_classic() + facet_grid(StateVar~Treatment, scales="free_y")  + scale_color_manual(values=c("purple", "brown", "green", "blue", "pink", "red"),labels=c("None (Expt)", "Worm (Expt)", "Hopper (Expt)", "Both (Expt)", "Removal", "Return")) + ylab(expression(Biomass~(g[N]~m^-2))) + xlab("Time (Days since start)") + ylab(expression(Biomass~(g[N]~m^-2))) + xlab("Time (Days since start)")+ geom_errorbar(data = datatomodel2a, aes(x=time, ymin = lower, ymax = upper, color=Treatment)) + geom_point(data = datatomodel2a, aes(x=time, y= Biomass, color=Treatment), size=2)
+
+outdataCOMP = datatomodel2a %>% 
+  left_join(as_tibble(output) %>% gather(-time, -Treatment, key = StateVar, value = Model))
+
+SVorder = unique(outdataCOMP$StateVar)
+
+vec = rep(NA, length(SVorder))
+for(i in 1:length(SVorder)){
+  ms =lm(Biomass~Model + 0, data=outdataCOMP %>% filter(StateVar==SVorder[i]))
+  mss = ifelse(ms$coefficients[1]>=0, "", "-")
+  vec[i] = paste0("R[Full]^2 == ",mss,round(summary(ms)$adj.r.squared,2))
+}
+rm(ms, mss)
+vec2 = rep(NA, length(SVorder))
+for(i in 1:length(SVorder)){
+  ms =lm(Biomass~Model + 0, data=outdataCOMP %>% 
+           filter(StateVar==SVorder[i] & Treatment %in% c("N","H","W","HW")))
+  mss = ifelse(ms$coefficients[1]>=0, "", "")
+  vec2[i] = paste0("R[Expt]^2 == ",mss, round(summary(ms)$adj.r.squared,2))
+}
+
+
+maxes = outdataCOMP %>% 
+  group_by(StateVar) %>%
+  summarize(BMmax = max(max(Biomass + upper), max(Model)))
+
+ann_text <- tibble(SVorder, vec, vec2) %>%
+  gather(-SVorder, key = type, value = R2) %>%
+  rename(StateVar = SVorder) %>%
+  left_join(maxes) %>%
+  mutate(Model = BMmax*0.2) %>%
+  mutate(Biomass = ifelse(type == "vec", BMmax*0.9, BMmax*0.8))
+
+rm(vec, vec2)
+
+ggplot(outdataCOMP, aes(x=Model, y=Biomass, color=Treatment)) + geom_abline(intercept=0, slope=1, lty=2) + geom_point() + geom_errorbar(data = outdataCOMP, aes(ymin = lower, ymax = upper, color=Treatment)) +  facet_wrap(c("StateVar"), scales="free") + theme_classic() + scale_color_manual(values=c("purple", "brown", "green", "blue", "pink", "red"),labels=c("None (Expt)", "Worm (Expt)", "Hopper (Expt)", "Both (Expt)", "Removal", "Addition")) + geom_text(data = ann_text,label = ann_text$R2, color="black", parse=T) + geom_blank(data = maxes %>% mutate(Model = BMmax, Biomass = BMmax, Treatment = "N") %>% bind_rows(maxes %>%  mutate(Model = 0, Biomass = 0, Treatment = "N")))
+
+output2 = output
+
+output2["Treatment"] = rep(c("T5","T4","T3","T2","T1","T0"), each=tmax2)
+
+as_tibble(output2) %>% gather(-time, -Treatment, key = StateVar, value = Biomass) %>% spread(key=Treatment, value=Biomass) %>% mutate(WE = T5-T4, Both = T3-T0, H = T2-T0, W = T1-T0) %>% mutate(Interaction = Both-(H+W)) %>% select(time, StateVar, WE, Both, H, W,Interaction) %>% gather(-time, -StateVar, key=Treatment, value=Biomass) %>% ggplot() + geom_line(aes(x=time, y=Biomass), alpha=0.5) + theme_classic() + facet_grid(StateVar~Treatment, scales="free_y") + ylab(expression(Biomass~(g[N]~m^-2))) + xlab("Time (Days since start)") + geom_hline(yintercept = 0, lty=2)
+
+dev.off()
+
+rm(output)
+
+# Compare the dynamics of single and multiple species outputs -----
+
+speciescomp = multipleoutput[,c("P1", "P2")]
+multipleoutput[,c("P1", "P2")] = NULL
+
+singleoutput["Treatment2"] = rep(c("T5","T4","T3","T2","T1","T0"), each=tmax2)
+singleoutput["Type"] = "Single"
+multipleoutput["Treatment2"] = rep(c("T5","T4","T3","T2","T1","T0"), each=tmax2)
+multipleoutput["Type"] = "Multiple"
+
+outputall = rbind(singleoutput, multipleoutput)
+
+toplot = as_tibble(outputall) %>% 
+  select(-Treatment) %>%
+  rename(Treatment = Treatment2) %>%
+  gather(-time, -Treatment, -Type, key = StateVar, value = Biomass) %>% 
+  spread(key=Treatment, value=Biomass) %>% 
+  mutate(WE = T5-T4, Both = T3-T0, H = T2-T0, W = T1-T0) %>% 
+  mutate(Interaction = Both-(H+W)) %>% 
+  select(time, StateVar, Type, WE, Both, H, W,Interaction) %>% 
+  gather(-time, -StateVar, -Type, key=Treatment, value=Biomass)
+
+toplot %>% 
+  ggplot() + geom_line(aes(x=time, y=Biomass, color = Type), alpha=0.5) + theme_classic() + facet_grid(StateVar~Treatment, scales="free_y") + ylab(expression(Biomass~(g[N]~m^-2))) + xlab("Time (Days since start)") + geom_hline(yintercept = 0, lty=2)
+
+toplot %>% filter(Treatment == "Interaction") %>%
+  ggplot() + geom_line(aes(x=time, y=Biomass, color = Type), alpha=0.5) + theme_classic() + facet_wrap(.~StateVar, scales="free") + ylab(expression(Biomass~(g[N]~m^-2))) + xlab("Time (Days since start)") + geom_hline(yintercept = 0, lty=2)
+
+speciescomp2 = cbind(multipleoutput,speciescomp)
+
+colnames(speciescomp2)
+
+# Treatments don't change plant species composition in the multiple model!
+speciescomp2 %>% as_tibble() %>% mutate(Prop = P1/(P1+P2)) %>%
+  mutate(Year = time/365) %>%
+  filter(Treatment %in% c("N", "H", "W", "HW")) %>%
+  ggplot(aes(x=Year, y = Prop, color = Treatment)) + geom_line() + theme_classic()
 
 # Simulate MULTIPLE sets of Treatments -------------------------------------------------
 
