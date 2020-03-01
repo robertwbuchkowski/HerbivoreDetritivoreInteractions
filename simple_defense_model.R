@@ -70,9 +70,9 @@ singlemodel <-function(t, y,pars){
     A_P = exp(-B/TEMP)/(1 + (B/(D-B))*exp(D*(1/(Tref_P) - 1/LTtemp(t %% 365))))
     
     # Modeled Herbivore death
-    th = ifelse(TEMP > 273.15, 
-                 ifelse(H < Hmin, 0, th0*WF), th0)
-    Vhp = ifelse(TEMP > 273.15, 0, Vhp0)
+    th = ifelse(TEMP > 273.15, th0, 
+                 ifelse(H < Hmin, 0, th0*WF))
+    Vhp = ifelse(TEMP < 273.15, 0, Vhp0)
     
     # Modeled microbial dynamics MIMICS
     tempC = (TEMP-273.15)
@@ -81,11 +81,11 @@ singlemodel <-function(t, y,pars){
     Klm = exp(Kslope*tempC + Kint)*Klm_mod
     Ksm = exp(Kslope*tempC + Kint)*Ksm_mod
     
-    dL = tp*P*P + (1-SUEh)*Vhp*H*P + th*H + A_W*tw*W*W - Vlm*L*M/(Klm + M) - A_W*Vlw*L*W
+    dL = tp*P*P + (1-SUEh)*Vhp*H*P + th*H*H + tw*W*W - Vlm*L*M/(Klm + M) - A_W*Vlw*L*W - l*L
     
     dM = SUE*(Vlm*L*M/(Klm + M) + Vsm*S*M/(Ksm + M)) - tm*M - SUEwm*A_W*Vsw*W*M
     
-    dW = SUEwl*A_W*Vlw*L*W + SUEws*A_W*Vsw*S*W + SUEwm*A_W*W*Vsw*M - A_W*tw*W*W
+    dW = SUEwl*A_W*Vlw*L*W + SUEws*A_W*Vsw*S*W + SUEwm*A_W*W*Vsw*M - tw*W*W
     
     dN = IN - q*N - fi*N + fo*S + (1-SUE)*(Vlm*L*M/(Klm + M) + Vsm*S*M/(Ksm + M)) - A_P*Vpf*N*P/(Kpf+N)
     
@@ -93,11 +93,11 @@ singlemodel <-function(t, y,pars){
     
     dP = A_P*Vpf*N*P/(Kpf+N) - tp*P*P - Vhp*H*P
     
-    dH = SUEh*Vhp*H*P - th*H
+    dH = SUEh*Vhp*H*P - th*H*H
     
     dy = c(dP, dL, dM, dW, dN, dS, dH)
     
-    return(list(c(dy), A_P = A_P))
+    return(list(c(dy), th = th))
     
   }
   )
@@ -115,23 +115,23 @@ params<- c(Vlm_mod = 8e-5,
            Ksm_mod = 0.143,
            Vlw = 2.4e-06,#2.4e-06, #2.4e-05 before correction to Type I
            Vsw = 4.1e-05,#4.1e-05,#0.00462 before correction to Type I
-           Vpf = 0.03/0.00018, #From JRS project
-           Kpf = 0.006, #From JRS project
-           A_P_mod = 0.005*639.0611,#0.008*639.0611,
-           Vhp0 = 0.0025, #From JRS project 0.0025 - 0.0029
+           Vpf = 0.03/0.00018, #From JRS project 0.03
+           Kpf = 0.1, #From JRS project 0.006
+           Vhp0 = 0.0005, #From JRS project 0.0025 - 0.0029
            SUEh = 0.7,
            SUE = 0.50,
            SUEws = 0.01,
            SUEwl = 0.02,
            SUEwm = 0.3,
-           q = 0.2,
-           IN= 0.02,
+           q = 0.1,
+           IN= 0.01,
+           l = 0,
            tm = 0.05,
-           tw = 0.000015,
-           th0 = 0.0001, # based on surivival from Schmitz lab experiments
+           tw = 0.00002,
+           th0 = 1, # based on surivival from Schmitz lab experiments
            fi=0.6, #0.6,
-           fo=0.002, #0.003,
-           tp = 0.00008, #0.00008,
+           fo=0.004, #0.003,
+           tp = 0.0001, #0.00008,
            Ea = 0.25,
            Kappa = 8.62e-05,
            Tref_W = 288.15,
@@ -153,9 +153,27 @@ yint= c(P=95.238095, # WE with R:S ratio from Buchkowski et al. 2018
         W=9.639477, # WE plots
         N=0.100000, # WE plots
         S=134.845515, # my historical data
-        H=0.01) # Schmitz et al. 1997 8-10/m2 * 0.0986 * 0.11
+        H=0.009) # Schmitz et al. 1997 8-10/m2 * 0.0986 * 0.11
 
-(ystable = stode(y=yint, func=singlemodel, parms=params)$y)
+100*(singlemodel(1, yint, params)[[1]]/yint)
+
+# (ystable = stode(y=yint, func=singlemodel, parms=params)$y)
+
+# zerochange <- function(ppp){
+#   ppp2 = exp(ppp)
+#   sum((singlemodel(1, yint, ppp2)[[1]]/yint)^2)
+# }
+# 
+# zerochange(log(params))
+# 
+# out <- optim(log(params), fn = zerochange)
+# 
+# params = exp(out$par)
+
+if(T){
+  params["Vhp0"] = 0
+  yint["H"] = 0
+}
 
 # timelist = sort(c(seq(206,365*1000,365),seq(1,365*1000,365)))
 initialrun = ode(y=yint,times = 1:(365*10), func=singlemodel, parms=params)
@@ -167,8 +185,28 @@ initialrun %>% as.data.frame() %>% as_tibble() %>%
   ggplot(aes(x= time, y= Biomass)) + geom_line() + 
   facet_wrap(.~StateVar, scale = "free") + theme_classic()
 
+initialrun = ode(y=yint,times = seq(1,365*100,1), func=singlemodel, parms=params)
 
-yint3 = initialrun[365*10,-1]
+initialrun %>% as.data.frame() %>% as_tibble() %>%
+  gather(-time, key = StateVar, value = Biomass) %>%
+  ggplot(aes(x= time, y= Biomass)) + geom_line() + 
+  facet_wrap(.~StateVar, scale = "free") + theme_classic()
+
+yint3 = initialrun[365*99,-1]
+
+if(T){
+  params["Vhp0"] = 0.0005
+  yint3["H"] = 0.009
+}
+
+initialrun = ode(y=yint3,times = 1:(365*10), func=singlemodel, parms=params)
+
+initialrun %>% as.data.frame() %>% as_tibble() %>%
+  gather(-time, key = StateVar, value = Biomass) %>%
+  ggplot(aes(x= time, y= Biomass)) + geom_line() + 
+  facet_wrap(.~StateVar, scale = "free") + theme_classic()
+
+
 
 output2_HW = ode(y=yint3,times = 1:tmax2_expt, func=singlemodel, parms=params,
                  events = list(data=eadd))
