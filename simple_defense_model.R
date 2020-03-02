@@ -71,9 +71,9 @@ params<- c(Vlm_mod = 8e-5,
            Ksm_mod = 0.143,
            Vlw = 2.4e-06,#2.4e-06, #2.4e-05 before correction to Type I
            Vsw = 4.1e-05,#4.1e-05,#0.00462 before correction to Type I
-           Vpf = 0.03/0.00018, #From JRS project 0.03
+           Vpf = 0.02/0.00018, #From JRS project 0.03
            Kpf = 0.1, #From JRS project 0.006
-           Vhp = 0.0029, #From JRS project 0.0025 - 0.0029
+           Vhp = 0.001, #From JRS project 0.0025 - 0.0029
            SUEh = 0.7,
            SUE = 0.50,
            SUEws = 0.01,
@@ -81,13 +81,13 @@ params<- c(Vlm_mod = 8e-5,
            SUEwm = 0.3,
            q = 0.1,
            IN= 0.02,
-           l = 0.001,
+           l = 0.0002,
            tm = 0.05,
-           tw = 0.00002,
-           th = 3, # based on surivival from Schmitz lab experiments
+           tw = 0.000015,
+           th = 4, # based on surivival from Schmitz lab experiments
            fi=0.6, #0.6,
-           fo=0.004, #0.003,
-           tp = 0.00001, #0.00008,
+           fo=0.003, #0.003,
+           tp = 0.00005, #0.00008,
            Ea = 0.25,
            Kappa = 8.62e-05,
            Tref_W = 288.15,
@@ -107,21 +107,26 @@ yint= c(P=95.238095, # WE with R:S ratio from Buchkowski et al. 2018
         S=134.845515, # my historical data
         H=0.009) # Schmitz et al. 1997 8-10/m2 * 0.0986 * 0.11
 
-yts = 20
-
-A1 = ode(y=yint,times = seq(1,365*yts,1), func=singlemodel, parms=params)
-yint["H"] = 0; params["Vhp"] = 0 
-A2 = ode(y=yint,times = seq(1,365*yts,1), func=singlemodel, parms=params)
-
-Adiff = 100*(A2 - A1)/A1 ; plot(Adiff[,"P"], type = "l")
-
-A1 %>% as.data.frame() %>% as_tibble() %>% mutate(Herb = "Yes") %>%
-  bind_rows(
-    A2 %>% as.data.frame() %>% as_tibble() %>% mutate(Herb = "No")
-  ) %>% 
-  gather(-time, - Herb, key = StateVar, value = Biomass) %>%
-  ggplot(aes(x= time, y= Biomass, color = Herb)) + geom_line() + 
-  facet_wrap(.~StateVar, scale = "free") + theme_classic()
+if(F){
+  yts = 10
+  A0 = ode(y=yint,times = seq(1,365*yts,1), func=singlemodel, parms=params)
+  yint0 = A0[365*(yts-1),-1]
+  
+  yts = 20
+  A1 = ode(y=yint0,times = seq(1,365*yts,1), func=singlemodel, parms=params)
+  yint0["H"] = 0; params["Vhp"] = 0 
+  A2 = ode(y=yint0,times = seq(1,365*yts,1), func=singlemodel, parms=params)
+  
+  # Adiff = 100*(A2 - A1)/A1 ; plot(Adiff[,"P"], type = "l")
+  
+  A1 %>% as.data.frame() %>% as_tibble() %>% mutate(Herb = "Yes") %>%
+    bind_rows(
+      A2 %>% as.data.frame() %>% as_tibble() %>% mutate(Herb = "No")
+    ) %>% 
+    gather(-time, - Herb, key = StateVar, value = Biomass) %>%
+    ggplot(aes(x= time, y= Biomass, color = Herb)) + geom_line() + 
+    facet_wrap(.~StateVar, scale = "free") + theme_classic()
+}
 
 yts = 1000
 
@@ -331,6 +336,50 @@ multiplemodel <-function(t, y,pars){
   )
 }
 
+
+params<- c(Vlm_mod = 8e-5,
+           Vsm_mod = 4e-06,
+           Klm_mod = 0.143,
+           Ksm_mod = 0.143,
+           Vlw = 2.4e-06,#2.4e-06, #2.4e-05 before correction to Type I
+           Vsw = 4.1e-05,#4.1e-05,#0.00462 before correction to Type I
+           
+           Vpf1 = 0.75*0.02/0.00018, #From JRS project 0.03
+           Kpf1 = 0.1, #From JRS project 0.006
+           Vhp1 = 0.95*0.001, #From JRS project 0.0025 - 0.0029
+           
+           Vpf2 = 0.25*0.02/0.00018, #From JRS project 0.03
+           Kpf2 = 0.1, #From JRS project 0.006
+           Vhp2 = 0.05*0.001, #From JRS project 0.0025 - 0.0029
+           
+           SUEh = 0.7,
+           SUE = 0.50,
+           SUEws = 0.01,
+           SUEwl = 0.02,
+           SUEwm = 0.3,
+           q = 0.1,
+           IN= 0.02,
+           l = 0.0002,
+           tm = 0.05,
+           tw = 0.000015,
+           th = 4, # based on surivival from Schmitz lab experiments
+           fi=0.6, #0.6,
+           fo=0.003, #0.003,
+           
+           tp1 = 0.00005, #0.00008,
+           tp2 = 0.00005, #0.00008,
+           
+           Ea = 0.25,
+           Kappa = 8.62e-05,
+           Tref_W = 288.15,
+           Tref_P = 297.65,
+           B = 2493,
+           D = 26712,
+           Vslope = 0.063,
+           Kslope = 0.007,
+           Vint = 5.47,
+           Kint = 3.19)
+
 params<- c(Vlm_mod = 8e-5,
            Vsm_mod = 4e-06,
            Klm_mod = 0.143,
@@ -383,26 +432,28 @@ yint= c(P1=95.238095/2, # WE
         S=134.845515, # my historical data
         H=0.009) # Schmitz et al. 1997 8-10/m2 * 0.0986 * 0.11
 
-yts = 10
+yts = 1000
 
 # yint["H"] = 0
 
 initialrun = ode(y=yint,times = seq(1,365*yts,1), func=multiplemodel, parms=params)
 
-100*(initialrun[(365*yts-182),-1] - initialrun[(365*yts-182-365),-1])/initialrun[(365*yts-182),-1]
-
-initialrun %>% as.data.frame() %>% as_tibble() %>%
-  filter(time > 365*(yts-5)) %>%
-  gather(-time, key = StateVar, value = Biomass) %>%
-  ggplot(aes(x= time, y= Biomass)) + geom_line() + 
-  facet_wrap(.~StateVar, scale = "free") + theme_classic()
-
-initialrun %>% as.data.frame() %>% as_tibble() %>%
-  filter(time %in% seq(1, 365*yts, 365)) %>%
-  mutate(time = time/365) %>%
-  gather(-time, key = StateVar, value = Biomass) %>%
-  ggplot(aes(x= time, y= Biomass)) + geom_line() + 
-  facet_wrap(.~StateVar, scale = "free") + theme_classic()
+if(F){
+  100*(initialrun[(365*yts-182),-1] - initialrun[(365*yts-182-365),-1])/initialrun[(365*yts-182),-1]
+  
+  initialrun %>% as.data.frame() %>% as_tibble() %>%
+    filter(time > 365*(yts-5)) %>%
+    gather(-time, key = StateVar, value = Biomass) %>%
+    ggplot(aes(x= time, y= Biomass)) + geom_line() + 
+    facet_wrap(.~StateVar, scale = "free") + theme_classic()
+  
+  initialrun %>% as.data.frame() %>% as_tibble() %>%
+    filter(time %in% seq(1, 365*yts, 365)) %>%
+    mutate(time = time/365) %>%
+    gather(-time, key = StateVar, value = Biomass) %>%
+    ggplot(aes(x= time, y= Biomass)) + geom_line() + 
+    facet_wrap(.~StateVar, scale = "free") + theme_classic()
+}
 
 yint3 = initialrun[365*(yts-1),-1]
 
@@ -588,8 +639,6 @@ toplot %>% filter(Treatment == "Interaction") %>%
   ggplot() + geom_line(aes(x=time, y=Biomass, color = Type), alpha=0.5) + theme_classic() + facet_wrap(.~StateVar, scales="free") + ylab(expression(Biomass~(g[N]~m^-2))) + xlab("Time (Days since start)") + geom_hline(yintercept = 0, lty=2)
 
 speciescomp2 = cbind(multipleoutput,speciescomp)
-
-colnames(speciescomp2)
 
 # Treatments don't change plant species composition in the multiple model!
 speciescomp2 %>% as_tibble() %>% mutate(Prop = P1/(P1+P2)) %>%
