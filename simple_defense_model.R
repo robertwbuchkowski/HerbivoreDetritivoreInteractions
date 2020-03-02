@@ -73,21 +73,21 @@ params<- c(Vlm_mod = 8e-5,
            Vsw = 4.1e-05,#4.1e-05,#0.00462 before correction to Type I
            Vpf = 0.03/0.00018, #From JRS project 0.03
            Kpf = 0.1, #From JRS project 0.006
-           Vhp = 0.0005, #From JRS project 0.0025 - 0.0029
+           Vhp = 0.0029, #From JRS project 0.0025 - 0.0029
            SUEh = 0.7,
            SUE = 0.50,
            SUEws = 0.01,
            SUEwl = 0.02,
            SUEwm = 0.3,
            q = 0.1,
-           IN= 0.01,
-           l = 0,
+           IN= 0.02,
+           l = 0.001,
            tm = 0.05,
            tw = 0.00002,
-           th = 1, # based on surivival from Schmitz lab experiments
+           th = 3, # based on surivival from Schmitz lab experiments
            fi=0.6, #0.6,
            fo=0.004, #0.003,
-           tp = 0.0001, #0.00008,
+           tp = 0.00001, #0.00008,
            Ea = 0.25,
            Kappa = 8.62e-05,
            Tref_W = 288.15,
@@ -106,6 +106,22 @@ yint= c(P=95.238095, # WE with R:S ratio from Buchkowski et al. 2018
         N=0.100000, # WE plots
         S=134.845515, # my historical data
         H=0.009) # Schmitz et al. 1997 8-10/m2 * 0.0986 * 0.11
+
+yts = 20
+
+A1 = ode(y=yint,times = seq(1,365*yts,1), func=singlemodel, parms=params)
+yint["H"] = 0; params["Vhp"] = 0 
+A2 = ode(y=yint,times = seq(1,365*yts,1), func=singlemodel, parms=params)
+
+Adiff = 100*(A2 - A1)/A1 ; plot(Adiff[,"P"], type = "l")
+
+A1 %>% as.data.frame() %>% as_tibble() %>% mutate(Herb = "Yes") %>%
+  bind_rows(
+    A2 %>% as.data.frame() %>% as_tibble() %>% mutate(Herb = "No")
+  ) %>% 
+  gather(-time, - Herb, key = StateVar, value = Biomass) %>%
+  ggplot(aes(x= time, y= Biomass, color = Herb)) + geom_line() + 
+  facet_wrap(.~StateVar, scale = "free") + theme_classic()
 
 yts = 1000
 
