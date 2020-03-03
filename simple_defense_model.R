@@ -37,7 +37,7 @@ singlemodel <-function(t, y,pars){
     Klm = exp(Kslope*tempC + Kint)*Klm_mod
     Ksm = exp(Kslope*tempC + Kint)*Ksm_mod
     
-    dL = tp*P*P + (1-SUEh)*A_W*Vhp*H*P + th*H*H + tw*W*W - Vlm*L*M/(Klm + M) - A_W*Vlw*L*W - l*L
+    dL = tp*P + (1-SUEh)*A_W*Vhp*H*P + th*H*H + tw*W*W - Vlm*L*M/(Klm + M) - A_W*Vlw*L*W - l*L
     
     dM = SUE*(Vlm*L*M/(Klm + M) + Vsm*S*M/(Ksm + M)) - tm*M - SUEwm*A_W*Vsw*W*M
     
@@ -47,7 +47,7 @@ singlemodel <-function(t, y,pars){
     
     dS = tm*M + (1-SUEwl)*A_W*Vlw*L*W - Vsm*S*M/(Ksm + M) - SUEws*A_W*Vsw*S*W + fi*N - fo*S
     
-    dP = A_P*Vpf*N*P/(Kpf+N) - tp*P*P - A_W*Vhp*H*P
+    dP = A_P*Vpf*N*P/(Kpf+N) - tp*P - A_W*Vhp*H*P
     
     dH = SUEh*A_W*Vhp*H*P - th*H*H
     
@@ -65,15 +65,15 @@ singlemodel <-function(t, y,pars){
 
 # Worm consumption: 200 mg[s] g
 
-params<- c(Vlm_mod = 8e-5,
+params<- c(Vlm_mod = 8e-6,
            Vsm_mod = 4e-06,
            Klm_mod = 0.143,
            Ksm_mod = 0.143,
            Vlw = 2.4e-06,#2.4e-06, #2.4e-05 before correction to Type I
            Vsw = 4.1e-05,#4.1e-05,#0.00462 before correction to Type I
-           Vpf = 0.02/0.00018, #From JRS project 0.03
-           Kpf = 0.1, #From JRS project 0.006
-           Vhp = 0.001, #From JRS project 0.0025 - 0.0029
+           Vpf = 0.001/0.00018, #From JRS project 0.03
+           Kpf = 0.08, #From JRS project 0.006
+           Vhp = 0.01, #From JRS project 0.0025 - 0.0029
            SUEh = 0.7,
            SUE = 0.50,
            SUEws = 0.01,
@@ -81,13 +81,13 @@ params<- c(Vlm_mod = 8e-5,
            SUEwm = 0.3,
            q = 0.1,
            IN= 0.02,
-           l = 0.0002,
-           tm = 0.05,
-           tw = 0.000015,
-           th = 4, # based on surivival from Schmitz lab experiments
+           l = 0.0001,
+           tm = 0.01,
+           tw = 0.00001,
+           th = 20, # based on surivival from Schmitz lab experiments
            fi=0.6, #0.6,
-           fo=0.003, #0.003,
-           tp = 0.00005, #0.00008,
+           fo=0.001, #0.003,
+           tp = 0.0005, #0.00008,
            Ea = 0.25,
            Kappa = 8.62e-05,
            Tref_W = 288.15,
@@ -108,7 +108,7 @@ yint= c(P=95.238095, # WE with R:S ratio from Buchkowski et al. 2018
         H=0.009) # Schmitz et al. 1997 8-10/m2 * 0.0986 * 0.11
 
 if(F){
-  yts = 10
+  yts = 100
   A0 = ode(y=yint,times = seq(1,365*yts,1), func=singlemodel, parms=params)
   yint0 = A0[365*(yts-1),-1]
   
@@ -117,7 +117,7 @@ if(F){
   yint0["H"] = 0; params["Vhp"] = 0 
   A2 = ode(y=yint0,times = seq(1,365*yts,1), func=singlemodel, parms=params)
   
-  # Adiff = 100*(A2 - A1)/A1 ; plot(Adiff[,"P"], type = "l")
+  Adiff = 100*(A2 - A1)/A1 ; plot(Adiff[,"P"], type = "l")
   
   A1 %>% as.data.frame() %>% as_tibble() %>% mutate(Herb = "Yes") %>%
     bind_rows(
@@ -312,7 +312,7 @@ multiplemodel <-function(t, y,pars){
     Klm = exp(Kslope*tempC + Kint)*Klm_mod
     Ksm = exp(Kslope*tempC + Kint)*Ksm_mod
     
-    dL = (tp1*P1*P1 + tp2*P2*P2) + (1-SUEh)*(A_W*Vhp1*H*P1 + A_W*Vhp2*H*P2) + th*H*H + tw*W*W - Vlm*L*M/(Klm + M) - A_W*Vlw*L*W - l*L
+    dL = (tp1*P1 + tp2*P2) + (1-SUEh)*(A_W*Vhp1*H*P1 + A_W*Vhp2*H*P2) + th*H*H + tw*W*W - Vlm*L*M/(Klm + M) - A_W*Vlw*L*W - l*L
     
     dM = SUE*(Vlm*L*M/(Klm + M) + Vsm*S*M/(Ksm + M)) - tm*M - SUEwm*A_W*Vsw*W*M
     
@@ -322,9 +322,9 @@ multiplemodel <-function(t, y,pars){
     
     dS = tm*M + (1-SUEwl)*A_W*Vlw*L*W - Vsm*S*M/(Ksm + M) - SUEws*A_W*Vsw*S*W + fi*N - fo*S
     
-    dP1 = A_P*Vpf1*N*P1/(Kpf1+N) - tp1*P1*P1 - A_W*Vhp1*H*P1
+    dP1 = A_P*Vpf1*N*P1/(Kpf1+N) - tp1*P1 - A_W*Vhp1*H*P1
     
-    dP2 = A_P*Vpf2*N*P2/(Kpf2+N) - tp2*P2*P2 - A_W*Vhp2*H*P2
+    dP2 = A_P*Vpf2*N*P2/(Kpf2+N) - tp2*P2 - A_W*Vhp2*H*P2
     
     dH = SUEh*(A_W*Vhp1*H*P1 + A_W*Vhp2*H*P2) - th*H*H
 
@@ -337,20 +337,20 @@ multiplemodel <-function(t, y,pars){
 }
 
 
-params<- c(Vlm_mod = 8e-5,
+params<- c(Vlm_mod = 8e-6,
            Vsm_mod = 4e-06,
            Klm_mod = 0.143,
            Ksm_mod = 0.143,
            Vlw = 2.4e-06,#2.4e-06, #2.4e-05 before correction to Type I
            Vsw = 4.1e-05,#4.1e-05,#0.00462 before correction to Type I
            
-           Vpf1 = 0.75*0.02/0.00018, #From JRS project 0.03
-           Kpf1 = 0.1, #From JRS project 0.006
-           Vhp1 = 0.95*0.001, #From JRS project 0.0025 - 0.0029
+           Vpf1 = 0.001/0.00018, #From JRS project 0.03
+           Kpf1 = 0.08, #From JRS project 0.006
+           Vhp1 = 0.01, #From JRS project 0.0025 - 0.0029
            
-           Vpf2 = 0.25*0.02/0.00018, #From JRS project 0.03
-           Kpf2 = 0.1, #From JRS project 0.006
-           Vhp2 = 0.05*0.001, #From JRS project 0.0025 - 0.0029
+           Vpf2 = 1.2*0.001/0.00018, #From JRS project 0.03
+           Kpf2 = 0.08, #From JRS project 0.006
+           Vhp2 = 2*0.01, #From JRS project 0.0025 - 0.0029
            
            SUEh = 0.7,
            SUE = 0.50,
@@ -359,15 +359,16 @@ params<- c(Vlm_mod = 8e-5,
            SUEwm = 0.3,
            q = 0.1,
            IN= 0.02,
-           l = 0.0002,
-           tm = 0.05,
-           tw = 0.000015,
-           th = 4, # based on surivival from Schmitz lab experiments
+           l = 0.0001,
+           tm = 0.01,
+           tw = 0.00001,
+           th = 20, # based on surivival from Schmitz lab experiments
            fi=0.6, #0.6,
-           fo=0.003, #0.003,
+           fo=0.001, #0.003,
            
-           tp1 = 0.00005, #0.00008,
-           tp2 = 0.00005, #0.00008,
+           tp1 = 0.8*0.0005, #0.00008,
+           
+           tp2 = 0.8*0.0005, #0.00008,
            
            Ea = 0.25,
            Kappa = 8.62e-05,
@@ -380,48 +381,6 @@ params<- c(Vlm_mod = 8e-5,
            Vint = 5.47,
            Kint = 3.19)
 
-params<- c(Vlm_mod = 8e-5,
-           Vsm_mod = 4e-06,
-           Klm_mod = 0.143,
-           Ksm_mod = 0.143,
-           Vlw = 2.4e-06,#2.4e-06, #2.4e-05 before correction to Type I
-           Vsw = 4.1e-05,#4.1e-05,#0.00462 before correction to Type I
-           
-           Vpf1 = 0.75*0.03/0.00018, # higher nitrogen uptake rate
-           Kpf1 = 0.1, #Same
-           Vhp1 = 0.95*0.0005, #higher herbivory
-           
-           Vpf2 = 0.25*0.03/0.00018, #lower nitrogen uptake rate
-           Kpf2 = 0.1, #Same
-           Vhp2 = 0.05*0.0005, #lower herbivory
-           
-           SUEh = 0.7,
-           SUE = 0.50,
-           SUEws = 0.01,
-           SUEwl = 0.02,
-           SUEwm = 0.3,
-           q = 0.1,
-           IN= 0.01,
-           l = 0,
-           tm = 0.05,
-           tw = 0.00002,
-           th = 1, # based on surivival from Schmitz lab experiments
-           fi=0.6, #0.6,
-           fo=0.004, #0.003,
-           
-           tp1 = 0.0001, #0.00008,
-           tp2 = 0.0001, #0.00008,
-           
-           Ea = 0.25,
-           Kappa = 8.62e-05,
-           Tref_W = 288.15,
-           Tref_P = 297.65,
-           B = 2493,
-           D = 26712,
-           Vslope = 0.063,
-           Kslope = 0.007,
-           Vint = 5.47,
-           Kint = 3.19)
 
 yint= c(P1=95.238095/2, # WE
         P2=95.238095/2, # WE
@@ -432,15 +391,34 @@ yint= c(P1=95.238095/2, # WE
         S=134.845515, # my historical data
         H=0.009) # Schmitz et al. 1997 8-10/m2 * 0.0986 * 0.11
 
-yts = 1000
 
-# yint["H"] = 0
+if(F){
+  yts = 100
+  A0 = ode(y=yint,times = seq(1,365*yts,1), func=multiplemodel, parms=params)
+  yint0 = A0[365*(yts-1),-1]
+  
+  yts = 20
+  A1 = ode(y=yint0,times = seq(1,365*yts,1), func=multiplemodel, parms=params)
+  yint0["H"] = 0; params["Vhp1"] = 0 ; params["Vhp2"] = 0 
+  A2 = ode(y=yint0,times = seq(1,365*yts,1), func=multiplemodel, parms=params)
+  
+  par(mfrow=c(1,2)); Adiff = 100*(A2 - A1)/A1 ; plot(Adiff[,"P2"], type = "l"); points(Adiff[,"P1"], type = "l", col = "red"); rg = range(c(A1[,"P1"]/A1[,"P2"],A2[,"P1"]/A2[,"P2"])); plot(P1/P2~time, data = A1, type = "l", ylim = c(floor(rg[1]), ceiling(rg[2]))); points(P1/P2~time, data = A2, type = "l", col = "orange"); par(mfrow=c(1,1)); rm(rg)
+  
+  A1 %>% as.data.frame() %>% as_tibble() %>% mutate(Herb = "Yes") %>%
+    bind_rows(
+      A2 %>% as.data.frame() %>% as_tibble() %>% mutate(Herb = "No")
+    ) %>% 
+    gather(-time, - Herb, key = StateVar, value = Biomass) %>%
+    ggplot(aes(x= time, y= Biomass, color = Herb)) + geom_line() + 
+    facet_wrap(.~StateVar, scale = "free") + theme_classic()
+}
+
+
+yts = 1000
 
 initialrun = ode(y=yint,times = seq(1,365*yts,1), func=multiplemodel, parms=params)
 
 if(F){
-  100*(initialrun[(365*yts-182),-1] - initialrun[(365*yts-182-365),-1])/initialrun[(365*yts-182),-1]
-  
   initialrun %>% as.data.frame() %>% as_tibble() %>%
     filter(time > 365*(yts-5)) %>%
     gather(-time, key = StateVar, value = Biomass) %>%
@@ -632,6 +610,10 @@ toplot = as_tibble(outputall) %>%
   select(time, StateVar, Type, WE, Both, H, W,Interaction) %>% 
   gather(-time, -StateVar, -Type, key=Treatment, value=Biomass)
 
+pdf(paste0("simplemodel_",Sys.Date(),"/Grahipcs_compare_",
+           round(100*(hour(Sys.time()) + (minute(Sys.time()))/60)),
+           ".pdf"), width=7, height=7)
+
 toplot %>% 
   ggplot() + geom_line(aes(x=time, y=Biomass, color = Type), alpha=0.5) + theme_classic() + facet_grid(StateVar~Treatment, scales="free_y") + ylab(expression(Biomass~(g[N]~m^-2))) + xlab("Time (Days since start)") + geom_hline(yintercept = 0, lty=2)
 
@@ -645,6 +627,8 @@ speciescomp2 %>% as_tibble() %>% mutate(Prop = P1/(P1+P2)) %>%
   mutate(Year = time/365) %>%
   filter(Treatment %in% c("N", "H", "W", "HW")) %>%
   ggplot(aes(x=Year, y = Prop, color = Treatment)) + geom_line() + theme_classic()
+
+dev.off()
 
 # Simulate MULTIPLE sets of Treatments -------------------------------------------------
 
