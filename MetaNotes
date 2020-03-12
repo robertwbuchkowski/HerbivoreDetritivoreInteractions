@@ -7,3 +7,5 @@ Issue with the current model is that the plant root growth doesn't benefit from 
 Issue with the current model is that two plant species are not coexisting. Need another D-D mechanism to help them coexist, since herbivory is just not doing it.
 
 Got it working with a simple plant LV competition model. Now it works OK, but interaction still pretty weak over 20 years.
+
+In order to account for two plants being about to take more resources, we added plant competition to (1) ensure coexistence was possible and (2) reduce the joint plant biomass down to comparable levels.

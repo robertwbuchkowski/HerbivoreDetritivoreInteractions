@@ -1,6 +1,10 @@
 require(FME)
 require(tidyverse)
 require(lubridate)
+
+# How many years do you want to simulate the experiments?
+simyear = 100
+
 # Create directory if necessary -------
 if(!dir.exists(paste0("simplemodel_",Sys.Date()))){
   dir.create(paste0("simplemodel_",Sys.Date()))
@@ -41,7 +45,7 @@ singlemodel <-function(t, y,pars){
     Klm = exp(Kslope*tempC + Kint)*Klm_mod
     Ksm = exp(Kslope*tempC + Kint)*Ksm_mod
     
-    dL = tp*P + (1-SUEh)*A_W*Vhp*H*P + th*H*H + tw*W*W - Vlm*L*M/(Klm + M) - A_W*Vlw*L*W - l*L
+    dL = tp*P*P + (1-SUEh)*A_W*Vhp*H*P + th*H*H + tw*W*W - Vlm*L*M/(Klm + M) - A_W*Vlw*L*W - l*L
     
     dM = SUE*(Vlm*L*M/(Klm + M) + Vsm*S*M/(Ksm + M)) - tm*M - SUEwm*A_W*Vsw*W*M
     
@@ -51,7 +55,7 @@ singlemodel <-function(t, y,pars){
     
     dS = tm*M + (1-SUEwl)*A_W*Vlw*L*W - Vsm*S*M/(Ksm + M) - SUEws*A_W*Vsw*S*W + fi*N - fo*S
     
-    dP = A_P*Vpf*N*P/(Kpf+N) - tp*P - A_W*Vhp*H*P
+    dP = A_P*Vpf*N*P/(Kpf+N) - tp*P*P - A_W*Vhp*H*P
     
     dH = SUEh*A_W*Vhp*H*P - th*H*H
     
@@ -91,7 +95,7 @@ params<- c(Vlm_mod = 8e-6,
            th = 20, # based on surivival from Schmitz lab experiments
            fi=0.6, #0.6,
            fo=0.001, #0.003,
-           tp = 0.0005, #0.00008,
+           tp = 0.000005, #0.00008,
            Ea = 0.25,
            Kappa = 8.62e-05,
            Tref_W = 288.15,
@@ -111,11 +115,16 @@ yint= c(P=95.238095, # WE with R:S ratio from Buchkowski et al. 2018
         S=134.845515, # my historical data
         H=0.009) # Schmitz et al. 1997 8-10/m2 * 0.0986 * 0.11
 
-if(F){
+
   yts = 100
   A0 = ode(y=yint,times = seq(1,365*yts,1), func=singlemodel, parms=params)
-  yint0 = A0[365*(yts-1),-1]
+  (yint0 = A0[365*(yts-1),-1])
   
+  # P            L            M            W            N 
+  # 34.609554901  8.570928208  5.429586815  9.495648285  0.160438844 
+  # S            H 
+  # 81.147450074  0.006371372 
+if(F){ 
   yts = 20
   A1 = ode(y=yint0,times = seq(1,365*yts,1), func=singlemodel, parms=params)
   yint0["H"] = 0; params["Vhp"] = 0 
@@ -136,7 +145,7 @@ yts = 1000
 
 initialrun = ode(y=yint,times = seq(1,365*yts,1), func=singlemodel, parms=params)
 
-100*(initialrun[(365*yts-182),-1] - initialrun[(365*yts-182-365),-1])/initialrun[(365*yts-182),-1]
+max(initialrun[(365*yts),-1] - initialrun[(365*yts-365),-1])
 
 initialrun %>% as.data.frame() %>% as_tibble() %>%
   filter(time > 365*(yts-5)) %>%
@@ -314,7 +323,7 @@ multiplemodel <-function(t, y,pars){
     Klm = exp(Kslope*tempC + Kint)*Klm_mod
     Ksm = exp(Kslope*tempC + Kint)*Ksm_mod
     
-    dL = a21*P1*P2 + a12*P1*P2 + (tp1*P1 + tp2*P2) + (1-SUEh)*(A_W*Vhp1*H*P1 + A_W*Vhp2*H*P2) + th*H*H + tw*W*W - Vlm*L*M/(Klm + M) - A_W*Vlw*L*W - l*L
+    dL = a21*P1*P2 + a12*P1*P2 + (tp1*P1*P1 + tp2*P2*P2) + (1-SUEh)*(A_W*Vhp1*H*P1 + A_W*Vhp2*H*P2) + th*H*H + tw*W*W - Vlm*L*M/(Klm + M) - A_W*Vlw*L*W - l*L
     
     dM = SUE*(Vlm*L*M/(Klm + M) + Vsm*S*M/(Ksm + M)) - tm*M - SUEwm*A_W*Vsw*W*M
     
@@ -372,9 +381,9 @@ params<- c(Vlm_mod = 8e-6,
            
            tp2 = 0.000005, #0.00008,
            
-           a21 = 0.0000001,
+           a21 = 0.000003,
            
-           a12 = 0.00000013,
+           a12 = 0.0000045,
            
            Ea = 0.25,
            Kappa = 8.62e-05,
@@ -411,7 +420,7 @@ if(F){
     facet_wrap(.~StateVar, scale = "free") + theme_classic()
 }
 
-if(T){
+if(F){
   initialrun %>% as.data.frame() %>% as_tibble() %>%
     filter(time %in% seq(1, 365*yts, 365)) %>%
     mutate(time = time/365) %>%
@@ -420,9 +429,14 @@ if(T){
     facet_wrap(.~StateVar, scale = "free") + theme_classic()
 }
 
-yint3 = initialrun[(dim(initialrun)[1]-1),-1]
+(yint3 = initialrun[(dim(initialrun)[1]-1),-1])
 
-if(T){
+# P            L            M            W            N 
+# 34.609554901  8.570928208  5.429586815  9.495648285  0.160438844 
+# S            H 
+# 81.147450074  0.006371372 
+
+if(F){
   # yts = 2000
   # A0 = ode(y=yint,times = seq(1,365*yts,1), func=multiplemodel, parms=params)
   # yint0 = A0[365*(yts-1),-1]
@@ -443,7 +457,6 @@ if(T){
     ggplot(aes(x= time, y= Biomass, color = Herb)) + geom_line() + 
     facet_wrap(.~StateVar, scale = "free") + theme_classic()
 }
-
 
 # ....Multiple model sampling and treatment data frames --------------------------------------
 
