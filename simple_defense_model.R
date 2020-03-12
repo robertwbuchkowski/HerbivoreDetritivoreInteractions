@@ -1,6 +1,10 @@
 require(FME)
 require(tidyverse)
 require(lubridate)
+# Create directory if necessary -------
+if(!dir.exists(paste0("simplemodel_",Sys.Date()))){
+  dir.create(paste0("simplemodel_",Sys.Date()))
+}
 
 # Load in data and functions ----------------------------------------------------
 
@@ -231,8 +235,6 @@ datatomodel2a = datatomodel2 %>%
   filter(Treatment %in% c("Rt","RmW","HW","H","W","N")) %>%
   ungroup()
 
-dir.create(paste0("simplemodel_",Sys.Date()))
-
 pdf(paste0("simplemodel_",Sys.Date(),"/Grahipcs",
            round(100*(hour(Sys.time()) + (minute(Sys.time()))/60)),
            ".pdf"), width=7, height=7)
@@ -312,7 +314,7 @@ multiplemodel <-function(t, y,pars){
     Klm = exp(Kslope*tempC + Kint)*Klm_mod
     Ksm = exp(Kslope*tempC + Kint)*Ksm_mod
     
-    dL = (tp1*P1 + tp2*P2) + (1-SUEh)*(A_W*Vhp1*H*P1 + A_W*Vhp2*H*P2) + th*H*H + tw*W*W - Vlm*L*M/(Klm + M) - A_W*Vlw*L*W - l*L
+    dL = a21*P1*P2 + a12*P1*P2 + (tp1*P1 + tp2*P2) + (1-SUEh)*(A_W*Vhp1*H*P1 + A_W*Vhp2*H*P2) + th*H*H + tw*W*W - Vlm*L*M/(Klm + M) - A_W*Vlw*L*W - l*L
     
     dM = SUE*(Vlm*L*M/(Klm + M) + Vsm*S*M/(Ksm + M)) - tm*M - SUEwm*A_W*Vsw*W*M
     
@@ -322,9 +324,9 @@ multiplemodel <-function(t, y,pars){
     
     dS = tm*M + (1-SUEwl)*A_W*Vlw*L*W - Vsm*S*M/(Ksm + M) - SUEws*A_W*Vsw*S*W + fi*N - fo*S
     
-    dP1 = A_P*Vpf1*N*P1/(Kpf1+N) - tp1*P1 - A_W*Vhp1*H*P1
+    dP1 = A_P*Vpf1*N*P1/(Kpf1+N) - tp1*P1*P1 - A_W*Vhp1*H*P1 - a12*P1*P2
     
-    dP2 = A_P*Vpf2*N*P2/(Kpf2+N) - tp2*P2 - A_W*Vhp2*H*P2
+    dP2 = A_P*Vpf2*N*P2/(Kpf2+N) - tp2*P2*P2 - A_W*Vhp2*H*P2 - a21*P1*P2
     
     dH = SUEh*(A_W*Vhp1*H*P1 + A_W*Vhp2*H*P2) - th*H*H
 
@@ -348,9 +350,9 @@ params<- c(Vlm_mod = 8e-6,
            Kpf1 = 0.08, #From JRS project 0.006
            Vhp1 = 0.01, #From JRS project 0.0025 - 0.0029
            
-           Vpf2 = 1.2*0.001/0.00018, #From JRS project 0.03
+           Vpf2 = 1.1*0.001/0.00018, #From JRS project 0.03
            Kpf2 = 0.08, #From JRS project 0.006
-           Vhp2 = 2*0.01, #From JRS project 0.0025 - 0.0029
+           Vhp2 = 1.8*0.01, #From JRS project 0.0025 - 0.0029
            
            SUEh = 0.7,
            SUE = 0.50,
@@ -366,9 +368,13 @@ params<- c(Vlm_mod = 8e-6,
            fi=0.6, #0.6,
            fo=0.001, #0.003,
            
-           tp1 = 0.8*0.0005, #0.00008,
+           tp1 = 0.000005, #0.00008,
            
-           tp2 = 0.8*0.0005, #0.00008,
+           tp2 = 0.000005, #0.00008,
+           
+           a21 = 0.0000001,
+           
+           a12 = 0.00000013,
            
            Ea = 0.25,
            Kappa = 8.62e-05,
@@ -391,18 +397,43 @@ yint= c(P1=95.238095/2, # WE
         S=134.845515, # my historical data
         H=0.009) # Schmitz et al. 1997 8-10/m2 * 0.0986 * 0.11
 
+yts = 1000
+
+initialrun = ode(y=yint,times = seq(1,365*yts,365), func=multiplemodel, parms=params)
+
+max(initialrun[(dim(initialrun)[1]-1),-1] - initialrun[(dim(initialrun)[1]-2),-1])
 
 if(F){
-  yts = 100
-  A0 = ode(y=yint,times = seq(1,365*yts,1), func=multiplemodel, parms=params)
-  yint0 = A0[365*(yts-1),-1]
+  initialrun %>% as.data.frame() %>% as_tibble() %>%
+    filter(time > 365*(yts-5)) %>%
+    gather(-time, key = StateVar, value = Biomass) %>%
+    ggplot(aes(x= time, y= Biomass)) + geom_line() + 
+    facet_wrap(.~StateVar, scale = "free") + theme_classic()
+}
+
+if(T){
+  initialrun %>% as.data.frame() %>% as_tibble() %>%
+    filter(time %in% seq(1, 365*yts, 365)) %>%
+    mutate(time = time/365) %>%
+    gather(-time, key = StateVar, value = Biomass) %>%
+    ggplot(aes(x= time, y= Biomass)) + geom_line() + 
+    facet_wrap(.~StateVar, scale = "free") + theme_classic()
+}
+
+yint3 = initialrun[(dim(initialrun)[1]-1),-1]
+
+if(T){
+  # yts = 2000
+  # A0 = ode(y=yint,times = seq(1,365*yts,1), func=multiplemodel, parms=params)
+  # yint0 = A0[365*(yts-1),-1]
+  yint0 = yint3
   
   yts = 20
   A1 = ode(y=yint0,times = seq(1,365*yts,1), func=multiplemodel, parms=params)
   yint0["H"] = 0; params["Vhp1"] = 0 ; params["Vhp2"] = 0 
   A2 = ode(y=yint0,times = seq(1,365*yts,1), func=multiplemodel, parms=params)
   
-  par(mfrow=c(1,2)); Adiff = 100*(A2 - A1)/A1 ; plot(Adiff[,"P2"], type = "l"); points(Adiff[,"P1"], type = "l", col = "red"); rg = range(c(A1[,"P1"]/A1[,"P2"],A2[,"P1"]/A2[,"P2"])); plot(P1/P2~time, data = A1, type = "l", ylim = c(floor(rg[1]), ceiling(rg[2]))); points(P1/P2~time, data = A2, type = "l", col = "orange"); par(mfrow=c(1,1)); rm(rg)
+  par(mfrow=c(1,2)); Adiff = 100*(A2 - A1)/A1 ; plot(Adiff[,"P2"], type = "l", col = "black", ylab = "Removing herbivore % change"); points(Adiff[,"P1"], type = "l", col = "red"); rg = range(c(A1[,"P1"]/A1[,"P2"],A2[,"P1"]/A2[,"P2"])); legend("topleft", legend = c("P2", "P1"), col = c("black", "red"), lty = 1); plot(P1/P2~time, data = A1, type = "l", ylim = c(floor(rg[1]), ceiling(rg[2])), col = "blue"); points(P1/P2~time, data = A2, type = "l", col = "orange"); par(mfrow=c(1,1));legend("topright", legend = c("Herbivore", "No herbivore"), col = c("blue", "orange"), lty = 1); rm(rg)
   
   A1 %>% as.data.frame() %>% as_tibble() %>% mutate(Herb = "Yes") %>%
     bind_rows(
@@ -413,27 +444,6 @@ if(F){
     facet_wrap(.~StateVar, scale = "free") + theme_classic()
 }
 
-
-yts = 1000
-
-initialrun = ode(y=yint,times = seq(1,365*yts,1), func=multiplemodel, parms=params)
-
-if(F){
-  initialrun %>% as.data.frame() %>% as_tibble() %>%
-    filter(time > 365*(yts-5)) %>%
-    gather(-time, key = StateVar, value = Biomass) %>%
-    ggplot(aes(x= time, y= Biomass)) + geom_line() + 
-    facet_wrap(.~StateVar, scale = "free") + theme_classic()
-  
-  initialrun %>% as.data.frame() %>% as_tibble() %>%
-    filter(time %in% seq(1, 365*yts, 365)) %>%
-    mutate(time = time/365) %>%
-    gather(-time, key = StateVar, value = Biomass) %>%
-    ggplot(aes(x= time, y= Biomass)) + geom_line() + 
-    facet_wrap(.~StateVar, scale = "free") + theme_classic()
-}
-
-yint3 = initialrun[365*(yts-1),-1]
 
 # ....Multiple model sampling and treatment data frames --------------------------------------
 
