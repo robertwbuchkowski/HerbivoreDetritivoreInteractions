@@ -813,7 +813,10 @@ datatomodel2a = datatomodel2 %>%
   summarize(std = sd(Biomass), Biomass = mean(Biomass)) %>%
   mutate(lower = Biomass - std, upper = Biomass + std) %>% 
   filter(Treatment %in% c("Rt","RmW","HW","H","W","N")) %>%
-  ungroup()
+  ungroup() %>% left_join(
+    data.frame(Treatment = c("Rt",  "RmW", "HW",  "H",   "W",   "N"),
+               Treatment3 = c("eRt",  "fRmW", "dHW",  "bH",   "cW",   "aN"))
+  )
 
 
 speciescomp = multipleoutput[,c("time","P1", "P2", "Treatment")]
@@ -831,14 +834,43 @@ multipleoutput["Type"] = "Multiple"
 
 
 
-outputall = rbind(singleoutput, directoutput, multipleoutput)
+outputall = rbind(singleoutput, directoutput, multipleoutput) %>% left_join(
+  data.frame(Treatment = c("Rt",  "RmW", "HW",  "H",   "W",   "N"),
+             Treatment3 = c("eRt",  "fRmW", "dHW",  "bH",   "cW",   "aN"))
+)
+
+StateVar_names <- c(
+  "H" = "Herbivore" ,
+  "M" = "Microbial",
+  "N" = "Inorganic",
+  "P" = "Plant",
+  "W" = "Earthworm",
+  "L" = "Litter",
+  "S" = "SOM"
+)
+
+Treatment3_names <- c(
+  "bH" = "Herbivores (Expt)" ,
+  "cW" = "Earthworms (Expt)",
+  "dHW" = "Both (Expt)",
+  "fRmW" = "Remove worms",
+  "eRt" = "Return worms",
+  "aN" = "Neither (Expt)"
+)
+
+effect_names <- c(
+  "aH" = "+ Herbivores (Expt)" ,
+  "bW" = "+ Earthworms (Expt)",
+  "cBoth" = "+ Both (Expt)",
+  "dInteraction" = "Interaction (Expt)",
+  "eWE" = "Returning worms"
+)
 
 pdf(paste0("simplemodel_",Sys.Date(),"/Grahipcs_compare_",
            round(100*(hour(Sys.time()) + (minute(Sys.time()))/60)),
-           ".pdf"), width=7, height=7)
+           ".pdf"), width=9.5, height=7)
 
-outputall %>% as_tibble() %>% filter(time < tmax2_expt) %>% select(-Treatment2, -P1, -P2) %>% gather(-Type, -time, -Treatment, key = StateVar, value = Biomass) %>% ggplot() + geom_line(aes(x=time, y=Biomass, linetype = Type), alpha=0.5) + theme_classic() + facet_grid(StateVar~Treatment, scales="free_y") + scale_color_manual(values=c("purple", "brown", "green", "blue", "pink", "red"),labels=c("None (Expt)", "Worm (Expt)", "Hopper (Expt)", "Both (Expt)", "Removal", "Return")) + ylab(expression(Biomass~(g[N]~m^-2))) + xlab("Time (Days since start)") + ylab(expression(Biomass~(g[N]~m^-2))) + xlab("Time (Days since start)")+ geom_errorbar(data = datatomodel2a, aes(x=time, ymin = lower, ymax = upper, color=Treatment)) + geom_point(data = datatomodel2a, aes(x=time, y= Biomass, color=Treatment), size=2)
-
+outputall %>% as_tibble() %>% filter(time < tmax2_expt) %>% select(-Treatment2,-Treatment, -P1, -P2) %>% gather(-Type, -time, -Treatment3, key = StateVar, value = Biomass) %>% ggplot() + geom_line(aes(x=time, y=Biomass, linetype = Type), alpha=0.5) + theme_classic() + facet_grid(StateVar~Treatment3, scales="free_y",labeller=labeller(StateVar = StateVar_names, Treatment3 = Treatment3_names)) + scale_color_manual(values=c("purple", "brown", "green", "blue", "pink", "red"),labels=c("None (Expt)", "Worm (Expt)", "Hopper (Expt)", "Both (Expt)", "Removal", "Return")) + ylab(expression(Biomass~(g[N]~m^-2))) + xlab("Time (Days since start)") + ylab(expression(Biomass~(g[N]~m^-2))) + xlab("Time (Days since start)")+ geom_errorbar(data = datatomodel2a, aes(x=time, ymin = lower, ymax = upper, color=Treatment3)) + geom_point(data = datatomodel2a, aes(x=time, y= Biomass, color=Treatment3), size=2)
 
 source("plotcompare.R")
 
@@ -850,23 +882,24 @@ plotcompare(outputall, "Multiple")
 # ggpubr::ggarrange(plotcompare(outputall, "Single"), plotcompare(outputall, "Multiple"), common.legend = T, labels = "AUTO", nrow = 2, ncol = 1)
 
 toplot = as_tibble(outputall) %>% 
-  select(-Treatment) %>%
+  select(-Treatment,-Treatment3) %>%
   rename(Treatment = Treatment2) %>%
   gather(-time, -Treatment, -Type, key = StateVar, value = Biomass) %>% 
   spread(key=Treatment, value=Biomass) %>% 
-  mutate(WE = T5-T4, Both = T3-T0, H = T2-T0, W = T1-T0) %>% 
-  mutate(Interaction = (T3-T2-T1+T0)/T0) %>% 
-  select(time, StateVar, Type, WE, Both, H, W,Interaction) %>% 
+  mutate(eWE = T5-T4, cBoth = T3-T0, aH = T2-T0, bW = T1-T0) %>% 
+  mutate(dInteraction = (T3-T2-T1+T0)/T0) %>% 
+  select(time, StateVar, Type, eWE, cBoth, aH, bW,dInteraction) %>% 
   gather(-time, -StateVar, -Type, key=Treatment, value=Biomass)
+
+# cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 
 toplot %>% filter(time %in% seq(1, 105*365, by = 365/10)) %>% 
   mutate(time = time/365) %>% 
   filter(!(StateVar %in% c("H", "W","P1", "P2"))) %>%
-  ggplot() + geom_line(aes(x=time, y=Biomass, color = Type), alpha=0.5) + theme_classic() + facet_grid(StateVar~Treatment, scales="free_y") + ylab(expression(Biomass~(g[N]~m^-2))) + xlab("Time (years)") + geom_hline(yintercept = 0, lty=2)
+  ggplot() + geom_line(aes(x=time, y=Biomass, color = Type), alpha=0.5) + theme_classic() + facet_grid(StateVar~Treatment, scales="free_y",labeller=labeller(StateVar = StateVar_names, Treatment = effect_names)) + ylab(expression(Biomass~(g[N]~m^-2))) + xlab("Time (years)") + geom_hline(yintercept = 0, lty=2) + scale_color_manual(values = c("#E69F00", "#56B4E9", "#009E73"))
 
-pdf(paste0("simplemodel_",Sys.Date(),"/talk.pdf"), width=7, height=5)
-toplot %>% filter(time %in% seq(1, 105*365, by = 365/10)) %>% mutate(time = time/365) %>% filter(!(StateVar %in% c("P1", "P2","H", "W"))) %>% filter(Treatment == "Interaction") %>%
-  ggplot() + geom_line(aes(x=time, y=Biomass, color = Type), alpha=0.5) + theme_classic() + facet_wrap(.~StateVar, scales="free") + ylab("Interaction effect (proportion of control)") + xlab("Time (years)") + geom_hline(yintercept = 0, lty=2)
+toplot %>% filter(time %in% seq(1, 105*365, by = 365/10)) %>% mutate(time = time/365) %>% filter(!(StateVar %in% c("P1", "P2","H", "W"))) %>% filter(Treatment == "dInteraction") %>%
+  ggplot() + geom_line(aes(x=time, y=Biomass, color = Type), alpha=0.5) + theme_classic() + facet_wrap(.~StateVar, scales="free",labeller=labeller(StateVar = StateVar_names)) + ylab("Interaction effect (proportion of control)") + xlab("Time (years)") + geom_hline(yintercept = 0, lty=2) + scale_color_manual(values = c("#E69F00", "#56B4E9", "#009E73"))
 
 # Treatments don't change plant species composition in the multiple model!
 speciescomp %>% as_tibble() %>% mutate(Prop = P1/(P1+P2))  %>% 
@@ -876,6 +909,11 @@ speciescomp %>% as_tibble() %>% mutate(Prop = P1/(P1+P2))  %>%
   mutate(LW = ifelse(Treatment %in% c("N", "H"), 2,1)) %>%
   ggplot(aes(x=Year, y = Prop, color = Treatment, size = LW)) + geom_line() + theme_classic() + scale_color_manual(values=c("purple", "brown", "green", "blue"),labels=c("None (Expt)", "Worm (Expt)", "Hopper (Expt)", "Both (Expt)")) + ylab("Proportion of fast growing plant") + scale_size(guide = F, range = c(1,3)) + xlab("Time (years)")
 
+dev.off()
+
+pdf(paste0("simplemodel_",Sys.Date(),"/talk.pdf"), width=7, height=5)
+toplot %>% filter(time %in% seq(1, 105*365, by = 365/10)) %>% mutate(time = time/365) %>% filter(!(StateVar %in% c("P1", "P2","H", "W"))) %>% filter(Treatment == "dInteraction") %>%
+  ggplot() + geom_line(aes(x=time, y=Biomass, color = Type), alpha=0.5) + theme_classic() + facet_wrap(.~StateVar, scales="free",labeller=labeller(StateVar = StateVar_names)) + ylab("Interaction effect (proportion of control)") + xlab("Time (years)") + geom_hline(yintercept = 0, lty=2) + scale_color_manual(values = c("#E69F00", "#56B4E9", "#009E73"))
 dev.off()
 
 # ..............Simulate MULTIPLE sets of Treatments -------------------------------------------------

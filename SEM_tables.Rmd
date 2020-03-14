@@ -1,0 +1,14 @@
+---
+title: "SEM Results"
+author: "Robert Buchkowski"
+date: "3/13/2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r cars}
+summary(cars)
+```

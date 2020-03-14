@@ -15,7 +15,7 @@ verbose = F
 
 source("extract_data_model_analysis.R")
 
-dir.create(paste0("Stats_plots_from_",Sys.Date()))
+if(!dir.exists(paste0("Stats_plots_from_",Sys.Date()))){dir.create(paste0("Stats_plots_from_",Sys.Date()))}
 
 # ..Cover and worm analysis of the data-----
 coverworm = percentcover %>% separate(SeasonYear, into=c("Season", "Year"), sep=-2) %>% select(-Date, -ExperimentStart, - DOE, -Season) %>% gather(-Plot, -Year, -DOY, key=Plant, value=Cover) %>% 
@@ -44,16 +44,14 @@ rm(coverworm)
 
 # ..Explore WE worm data ----------------------------------------------------
 jpeg(paste0("Stats_plots_from_",Sys.Date(),"/Worm_QCQA_WE_",Sys.Date(), ".jpeg"), units="in", width=7, height=7, res=600)
-ggplot(wormWE,aes(x=DOE, y=WORM_N, color=Treatment, group=Plot)) + geom_line() + theme_classic()
+ggplot(wormWE,aes(x=DOE, y=WORM_N, color=Treatment, group=Plot)) + geom_line() + theme_classic() + ylab("Earthworm (#)") + xlab("Day of the Experiment")
 dev.off()
 
 ggplot(wormWE,aes(x=DOE, y=AP_N, color=Treatment, group=Plot)) + geom_line() + theme_classic()
 
 ggplot(wormWE,aes(x=DOE, y=LUM_N, color=Treatment, group=Plot)) + geom_line() + theme_classic()
 
-ggplot(wormWE,aes(x=DOE, y=Worm_Wt, color=Treatment, group=Plot)) + geom_line() + theme_classic()  
-
-ggplot(wormWE,aes(x=DOE, y=Worm_Wt/WORM_N, color=Treatment, group=Plot)) + geom_line() + theme_classic()  # no trend in weight of worms over time
+ggplot(wormWE,aes(x=DOE, y=Worm_Wt, color=Treatment, group=Plot)) + geom_line() + theme_classic() 
 
 summary(lmer(WORM_N~Treatment + DOE + SoilTavg + CloudCover + (1|Plot), data= wormWE %>% filter(DOE > 500)))
 summary(lm(AP_N~Treatment + DOE+ SoilTavg + CloudCover, data= wormWE %>% filter(DOE > 500)))
@@ -86,7 +84,7 @@ wormdata %>% mutate(Addition = ifelse(AP_add_N>0, "Add", "Remove"))%>%ggplot(aes
 wormdata %>% mutate(Addition = ifelse(AP_add_N>0, "Add", "Remove"))%>%ggplot(aes(x=SeasonYear, y=WORM_N, color=Addition)) + geom_boxplot() + theme_classic()
 
 jpeg(paste0("Stats_plots_from_",Sys.Date(),"/Worm_QCQA_Expt_",Sys.Date(), ".jpeg"), units="in", width=7, height=7, res=600)
-wormdata2 %>% ggplot(aes(x=SeasonYear, y=WORM_N, color=Addition)) + geom_boxplot() + geom_jitter() + theme_classic() + scale_color_discrete(labels = c("Add", "Control", "Remove")) + scale_x_discrete(limits=c("Spring16", "Fall16","Spring17", "Fall17","Spring18", "Fall18")) + ylab("Earthworms (#)") + xlab("Season and Year")
+wormdata2 %>% ggplot(aes(x=SeasonYear, y=WORM_N, color=Addition)) + geom_boxplot() + geom_jitter() + theme_classic() + scale_color_discrete(labels = c("Add", "Control", "Remove")) + scale_x_discrete(limits=c("Spring16", "Fall16","Spring17", "Fall17","Spring18", "Fall18"), labels = c("Spring '16", "Fall '16","Spring '17", "Fall '17","Spring '18", "Fall '18")) + ylab("Earthworms (#)") + xlab("Season and Year")
 dev.off()
 
 wormdata2 %>% ggplot(aes(x=SeasonYear, y=AP_N, color=Addition)) + geom_boxplot() + geom_jitter() + theme_classic()
@@ -102,19 +100,17 @@ plot(resid(m1)~Addition, data=wormdata2)
 boxplot(resid(m1)~Season, data=wormdata2)
 boxplot(resid(m1)~Year, data=wormdata2)
 
-# class(m1) = "lmerMod"
-
 m1 = lmer(WORM_N~ Addition + DOE + (1|Plot), data=wormdata2); summary(m1)
 summary(glht(m1, linfct = mcp(Addition="Tukey")))
 plot(m1)
 
 m1 = lm(AP_N~ Addition + DOE, data=wormdata2); summary(m1)
 summary(glht(m1, linfct = mcp(Addition="Tukey")))
-plot(m1) 
+par(mfrow=c(2,2)); plot(m1); par(mfrow=c(1,1))
 
 m1 = lm(LUM_N~ Addition + DOE, data=wormdata2); summary(m1)
 summary(glht(m1, linfct = mcp(Addition="Tukey")))
-plot(m1) 
+par(mfrow=c(2,2)); plot(m1); par(mfrow=c(1,1))
 # significantly more worms in the Addition plots than either the Frozen plots or the Removal plots
 
 ch4_wm1 = lmer(WORM_N ~ VWCavg + SoilTavg + CloudCover + Air_Temp + (1|Plot), data= wormdata2); summary(ch4_wm1); plot(ch4_wm1)
@@ -165,6 +161,8 @@ ch4_LUMm1 = lm(LUM_N ~ VWCavg + SoilTavg + CloudCover + Season + Addition, data=
 vif(ch4_LUMm1) # all less than 5, so OK, but VWCavg is borderline.
 
 # SUMMARY: LUM not well manipulated by treatments, but AP was well manipulated. LUM actually higher in removal treatments, which is consistent with their ecological role as a primary colonizer to worm-free areas. Soil temperautre, season, and treatment determine the number of worms removed. Can use SoilTavg as a covariate to models considering the full worm numbers
+
+# . Correct the chapter 4 worm data to account for variable extraction efficiency ----
 
 wormdata3 = wormdata2 %>% filter(SeasonYear == "Fall17"|SeasonYear == "Fall18")
 
@@ -390,6 +388,7 @@ ch4_NTmm_1 = update(ch4_NTmm, .~. - WORM_N:HopperN); summary(ch4_NTmm_1)
 
 #......Output Models -----------------------------------------------------
 
+# NEED TO FIX THIS!!!
 stargazer(ch4_PBm17_1,ch4_PBm18_1,ch4_SIRm17,ch4_SIRm18,ch4_NTsm17,ch4_NTsm18,ch4_NTmm17,ch4_NTmm18,star.cutoffs = c(0.05, 0.01, 0.001), column.labels = rep(c("2017", "2018"),4))
 
 jpeg(paste0("Stats_plots_from_",Sys.Date(),"/Figure3_",Sys.Date(), ".jpeg"), units="in", width=6, height=8, res=600)
