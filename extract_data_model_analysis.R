@@ -149,7 +149,7 @@ pbdata = plotdata %>% select(Plot, PlantBiomass16,PlantBiomass17,PlantBiomass18,
   distinct() #remove duplicated rows
 
 pbdataWE = WE %>% select(Plot, Treatment, PlantBiomass16,PlantBiomass17,PlantBiomass18) %>% gather(-Plot,-Treatment, -PlantBiomass16, key=Key, value=Measure) %>% separate(Key, into=c("Type", "Year"), sep=-2) %>% spread(key=Type, value=Measure) %>% # creates the plot data, with hoppers and plant biomass, plant biomass 2016 is the baseline
-  left_join(wormWE %>% separate(SeasonYear, into=c("Season", "Year"), sep=-2) %>% filter(Season=="Fall" & Year!="16")%>% select(Plot, Year, WORM_N, Worm_Wt, AP_N, LUM_N, AP_Wt, LUM_Wt, SoilTavg)) %>% # Adding the worm data for 2017 and 2018
+  left_join(wormWE %>% separate(SeasonYear, into=c("Season", "Year"), sep=-2) %>% filter(Season=="Fall" & Year!="16")%>% select(Plot, Year, WORM_N, Worm_Wt, AP_N, LUM_N, AP_Wt, LUM_Wt, SoilTavg, CloudCover, Air_Temp, VWCavg)) %>% # Adding the worm data for 2017 and 2018
   left_join(soildata %>% filter(Project =="W") %>% select(-Project) %>% spread(key=Type, value=Measure) %>% mutate(FrozenSIR = ifelse(is.na(FrozenSIR), 0, FrozenSIR)) %>% filter(Season=="Fall" & Year!="16") %>% select(-SeasonYear, -Season, -FrozenSIR, -pH)) %>% # Adding soil data for 2017 and 2018
   left_join(soildata %>% filter(Project =="W") %>% select(-Project) %>% spread(key=Type, value=Measure) %>% mutate(FrozenSIR = ifelse(is.na(FrozenSIR), 0, FrozenSIR)) %>% filter(Year=="16") %>% select(-SeasonYear, -Season, -FrozenSIR, -pH) %>% select(Plot, Year, SIR, NTs, NTm) %>% gather(-Plot, -Year, key=Key, value=Value) %>% mutate(Key = paste0(Key, Year)) %>% select(-Year) %>% spread(key=Key, value=Value)) #Add 2016 soil data
 

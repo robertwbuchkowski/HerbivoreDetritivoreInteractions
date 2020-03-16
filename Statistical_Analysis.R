@@ -1,15 +1,11 @@
 # CH4 and WE Data Analysis and Exploration
 
-require(vegan)
-require(nlme)
-require(lme4)
-# require(multcomp)
-# require(car)
-# require(lmerTest)
-# require(stargazer)
-require(effects)
-require(piecewiseSEM)
-require(tidyverse)
+library(vegan) # version 2.5-6
+library(nlme) # version 3.1-137
+library(lme4) # version 1.1-19
+library(effects) # version 4.1-0
+library(piecewiseSEM) # version 2.0.2
+library(tidyverse) # version 1.2.1
 
 verbose = F
 
@@ -17,159 +13,49 @@ source("extract_data_model_analysis.R")
 
 if(!dir.exists(paste0("Stats_plots_from_",Sys.Date()))){dir.create(paste0("Stats_plots_from_",Sys.Date()))}
 
-# ..Cover and worm analysis of the data-----
-coverworm = percentcover %>% separate(SeasonYear, into=c("Season", "Year"), sep=-2) %>% select(-Date, -ExperimentStart, - DOE, -Season) %>% gather(-Plot, -Year, -DOY, key=Plant, value=Cover) %>% 
-  left_join(read_csv("Data/plant_groups_ch4.csv")) %>% # can add this information
-  filter(DOY!=150) %>% # remove second spring survey so 2017 and 2018 have the same # of surveys
-  filter(!is.na(Cover)) %>% group_by(Plot, Year,Plant, Fcn_grp) %>% 
-  summarise(Cover = mean(Cover)) %>% ungroup() %>% group_by(Plot, Year, Fcn_grp) %>% 
-  summarise(Cover=sum(Cover)) %>% ungroup() %>% 
-  filter(Fcn_grp %in% c("legume", "forb", "grass")) %>% 
-  left_join(wormdata2 %>% filter(Season=="Spring") %>% 
-              select(Plot, Year, Addition, WORM_N))
-
-coverworm %>% ggplot(aes(x=WORM_N, y=Cover, color=Year)) + geom_point() + theme_classic() + facet_grid(Fcn_grp~.) + stat_smooth(method="lm")
-
-summary(lm(Cover~WORM_N+Year, data=coverworm %>% filter(Fcn_grp =="legume")))
-summary(lm(Cover~WORM_N+Year, data=coverworm %>% filter(Fcn_grp =="grass")))
-summary(lm(Cover~WORM_N+Year, data=coverworm %>% filter(Fcn_grp =="forb")))
-
-summary(lm(Cover~Addition+Year, data=coverworm %>% filter(Fcn_grp =="legume")))
-summary(lm(Cover~Addition+Year, data=coverworm %>% filter(Fcn_grp =="grass")))
-summary(lm(Cover~Addition+Year, data=coverworm %>% filter(Fcn_grp =="forb")))
-
-# worm treatment or number don't explain changes in cover...largest effect is time with forbs replacing clover.
-
-rm(coverworm)
-
-# ..Explore WE worm data ----------------------------------------------------
-jpeg(paste0("Stats_plots_from_",Sys.Date(),"/Worm_QCQA_WE_",Sys.Date(), ".jpeg"), units="in", width=7, height=7, res=600)
-ggplot(wormWE,aes(x=DOE, y=WORM_N, color=Treatment, group=Plot)) + geom_line() + theme_classic() + ylab("Earthworm (#)") + xlab("Day of the Experiment")
-dev.off()
-
-ggplot(wormWE,aes(x=DOE, y=AP_N, color=Treatment, group=Plot)) + geom_line() + theme_classic()
-
-ggplot(wormWE,aes(x=DOE, y=LUM_N, color=Treatment, group=Plot)) + geom_line() + theme_classic()
-
-ggplot(wormWE,aes(x=DOE, y=Worm_Wt, color=Treatment, group=Plot)) + geom_line() + theme_classic() 
-
-summary(lmer(WORM_N~Treatment + DOE + SoilTavg + CloudCover + (1|Plot), data= wormWE %>% filter(DOE > 500)))
-summary(lm(AP_N~Treatment + DOE+ SoilTavg + CloudCover, data= wormWE %>% filter(DOE > 500)))
-summary(lm(LUM_N~Treatment + DOE+ SoilTavg + CloudCover, data= wormWE %>% filter(DOE > 500))) # not significantly reduced
-summary(lm(Worm_Wt~Treatment + DOE+ SoilTavg + CloudCover, data= wormWE %>% filter(DOE > 500)))
-summary(lm(AP_Wt~Treatment + DOE+ SoilTavg + CloudCover, data= wormWE %>% filter(DOE > 500))) 
-summary(lm(LUM_Wt~Treatment + DOE+ SoilTavg + CloudCover, data= wormWE %>% filter(DOE > 500))) # significantly reduced the weight of LUM, but see above not numbers (i.e. colonization)
-
-we_m1 = lm(WORM_N~Treatment + Season + Year + SoilTavg, data= wormWE); summary(we_m1)
-summary(glht(we_m1, linfct=mcp(Year ="Tukey")))
-summary(glht(we_m1, linfct=mcp(Season ="Tukey")))
-
-we_m1 = lm(WORM_N~Treatment + SeasonYear + SoilTavg, data= wormWE); summary(we_m1)
-summary(glht(we_m1, linfct=mcp(SeasonYear ="Tukey")))
-
-ggplot(wormWE,aes(x=SeasonYear, y=WORM_N)) + geom_boxplot() + theme_classic() + geom_jitter(aes(color=Treatment), height = 0)  # Fall 2018 is the lowest year, significant relative to other falls, but not the spring numbers.
-
-WE %>% mutate(Diff = PlantBiomass17-PlantBiomassSp18) %>% ggplot(aes(x=Treatment, y=Diff)) + geom_boxplot() + geom_jitter(color="red")
-
-t.test(Diff~Treatment, data= WE %>% mutate(Diff = PlantBiomass17-PlantBiomassSp18))
-
-WE %>% mutate(Diff = PlantBiomass17-PlantBiomassSp18) %>% left_join(wormWE %>% filter(SeasonYear == "Spring18") %>% select(Plot, WORM_N)) %>% ggplot(aes(x=WORM_N, y=Diff, color=Treatment)) + geom_point() + theme_classic()
-
-summary(lm(Diff~WORM_N, data= WE %>% mutate(Diff = PlantBiomass17-PlantBiomassSp18) %>% left_join(wormWE %>% filter(SeasonYear == "Spring18") %>% select(Plot, WORM_N))))
-
-# ..Explore CH4 worm data ---------------------------------------------------
-
-wormdata %>% mutate(Addition = ifelse(AP_add_N>0, "Add", "Remove"))%>%ggplot(aes(x=DOE, y=WORM_N, group=Plot, color=Addition)) + geom_line() + theme_classic()
-
-wormdata %>% mutate(Addition = ifelse(AP_add_N>0, "Add", "Remove"))%>%ggplot(aes(x=SeasonYear, y=WORM_N, color=Addition)) + geom_boxplot() + theme_classic()
-
-jpeg(paste0("Stats_plots_from_",Sys.Date(),"/Worm_QCQA_Expt_",Sys.Date(), ".jpeg"), units="in", width=7, height=7, res=600)
-wormdata2 %>% ggplot(aes(x=SeasonYear, y=WORM_N, color=Addition)) + geom_boxplot() + geom_jitter() + theme_classic() + scale_color_discrete(labels = c("Add", "Control", "Remove")) + scale_x_discrete(limits=c("Spring16", "Fall16","Spring17", "Fall17","Spring18", "Fall18"), labels = c("Spring '16", "Fall '16","Spring '17", "Fall '17","Spring '18", "Fall '18")) + ylab("Earthworms (#)") + xlab("Season and Year")
-dev.off()
-
-wormdata2 %>% ggplot(aes(x=SeasonYear, y=AP_N, color=Addition)) + geom_boxplot() + geom_jitter() + theme_classic()
-
-wormdata2 %>% ggplot(aes(x=SeasonYear, y=LUM_N, color=Addition)) + geom_boxplot() + geom_jitter() + theme_classic()
+# 1.0 Experiment Analysis ----
+# .... 1.0.1 Explore CH4 worm data ----
 
 m1 = lmer(WORM_N~ Addition + Season + Year + (1|Plot), data=wormdata2 %>% mutate(Year= as.factor(Year))); summary(m1)
-summary(glht(m1, linfct = mcp(Addition="Tukey")))
-summary(glht(m1, linfct = mcp(Year="Tukey")))
-summary(glht(m1, linfct = mcp(Season="Tukey")))
+summary(multcomp::glht(m1, linfct = multcomp::mcp(Addition="Tukey")))
+summary(multcomp::glht(m1, linfct = multcomp::mcp(Year="Tukey")))
+summary(multcomp::glht(m1, linfct = multcomp::mcp(Season="Tukey")))
 plot(m1)
 plot(resid(m1)~Addition, data=wormdata2)
 boxplot(resid(m1)~Season, data=wormdata2)
 boxplot(resid(m1)~Year, data=wormdata2)
 
-m1 = lmer(WORM_N~ Addition + DOE + (1|Plot), data=wormdata2); summary(m1)
-summary(glht(m1, linfct = mcp(Addition="Tukey")))
-plot(m1)
+m1 = lmer(AP_N~ Addition + Season + Year + (1|Plot), data=wormdata2 %>% mutate(Year= as.factor(Year))); summary(m1)
+summary(multcomp::glht(m1, linfct = multcomp::mcp(Addition="Tukey")))
+summary(multcomp::glht(m1, linfct = multcomp::mcp(Year="Tukey")))
+summary(multcomp::glht(m1, linfct = multcomp::mcp(Season="Tukey")))
 
-m1 = lm(AP_N~ Addition + DOE, data=wormdata2); summary(m1)
-summary(glht(m1, linfct = mcp(Addition="Tukey")))
-par(mfrow=c(2,2)); plot(m1); par(mfrow=c(1,1))
+m1 = lmer(LUM_N~ Addition + Season + Year + (1|Plot), data=wormdata2 %>% mutate(Year= as.factor(Year))); summary(m1)
+summary(multcomp::glht(m1, linfct = multcomp::mcp(Addition="Tukey")))
+summary(multcomp::glht(m1, linfct = multcomp::mcp(Year="Tukey")))
+summary(multcomp::glht(m1, linfct = multcomp::mcp(Season="Tukey")))
 
-m1 = lm(LUM_N~ Addition + DOE, data=wormdata2); summary(m1)
-summary(glht(m1, linfct = mcp(Addition="Tukey")))
-par(mfrow=c(2,2)); plot(m1); par(mfrow=c(1,1))
-# significantly more worms in the Addition plots than either the Frozen plots or the Removal plots
+# SUMMARY: LUM not well manipulated by treatments, but AP was well manipulated. LUM actually higher in removal treatments, which is consistent with their ecological role as a primary colonizer to worm-free areas. Soil temperautre, season, and treatment determine the number of worms removed. Can use SoilTavg as a covariate to models considering the full worm numbers
 
-ch4_wm1 = lmer(WORM_N ~ VWCavg + SoilTavg + CloudCover + Air_Temp + (1|Plot), data= wormdata2); summary(ch4_wm1); plot(ch4_wm1)
-
-ch4_wm1 = lmer(AP_N ~ VWCavg + SoilTavg + CloudCover + Air_Temp + (1|Plot), data= wormdata2); summary(ch4_wm1); plot(ch4_wm1)
-
-ch4_wm1 = lmer(LUM_N ~ VWCavg + SoilTavg + CloudCover + Air_Temp + (1|Plot), data= wormdata2); summary(ch4_wm1); plot(ch4_wm1)
+jpeg(paste0("Stats_plots_from_",Sys.Date(),"/Worm_QCQA_Expt_",Sys.Date(), ".jpeg"), units="in", width=7, height=7, res=600)
+wormdata2 %>% ggplot(aes(x=SeasonYear, y=WORM_N, color=Addition)) + geom_boxplot() + geom_jitter() + theme_classic() + scale_color_discrete(labels = c("Add", "Control", "Remove")) + scale_x_discrete(limits=c("Spring16", "Fall16","Spring17", "Fall17","Spring18", "Fall18"), labels = c("Spring '16", "Fall '16","Spring '17", "Fall '17","Spring '18", "Fall '18")) + ylab("Earthworms (#)") + xlab("Season and Year")
+dev.off()
 
 jpeg(paste0("Stats_plots_from_",Sys.Date(),"/Worm_covar_",Sys.Date(), ".jpeg"), units="in", width=7, height=7, res=600)
 wormdata2 %>% select(WORM_N, AP_N, LUM_N, SoilTavg,VWCavg,CloudCover, Air_Temp) %>% gather(-WORM_N, -AP_N, -LUM_N, key=abiotic_key, value=abiotic) %>% gather(-abiotic_key, -abiotic, key=wormtype, value=Number) %>% filter(!is.na(abiotic)) %>% ggplot(aes(x=abiotic, y=Number)) + geom_point() + facet_wrap(abiotic_key~wormtype, scales="free_x") + theme_classic()
 dev.off()
 
-ch4_wm1 = mgcv::gamm(WORM_N*10 ~ s(DOY), random=list(Plot=~1), data= wormdata2 %>% filter(Season=="Fall"), family="poisson"); summary(ch4_wm1); anova(ch4_wm1$gam); plot(ch4_wm1$gam); plot(resid(ch4_wm1$lme, type="normalized")~DOY, data= wormdata2 %>% filter(Season=="Fall"))
-
-ch4_wm1 = mgcv::gamm(WORM_N*10 ~ s(DOY), random=list(Plot=~1), data= wormdata2 %>% filter(Season=="Spring"), family="poisson"); summary(ch4_wm1); anova(ch4_wm1$gam); plot(ch4_wm1$gam); plot(ch4_wm1$gam); plot(resid(ch4_wm1$lme, type="normalized")~DOY, data= wormdata2 %>% filter(Season=="Spring"))
-
-jpeg(paste0("Stats_plots_from_",Sys.Date(),"/Worm_doy_",Sys.Date(), ".jpeg"), units="in", width=7, height=7, res=600)
-wormdata2 %>% select(WORM_N, AP_N, LUM_N, DOY, Season)%>% gather(-DOY, - Season, key=wormtype, value=Number) %>% ggplot(aes(x=DOY, y=Number)) + geom_jitter()+ theme_classic() + facet_wrap(Season~wormtype, scale="free_x")
-dev.off()
-
-ch4_wm2 = lm(WORM_N ~ VWCavg + SoilTavg + CloudCover + Season + Addition, data= wormdata2); summary(ch4_wm2) # keep only SoilTavg and use Season
-
-1/(1-summary(ch4_wm2)$r.squared) # if VIF > than this, variables are more related to each other than the dependent variable
-
-vif(ch4_wm2) # better, use the above model for worms!
-
-wormdata2 %>% ggplot(aes(x = VWCavg, y= WORM_N, color=Year)) + geom_point() + theme_classic()
-
-wormdata2 %>% ggplot(aes(x = SoilTavg, y= WORM_N, color=Year)) + geom_point() + theme_classic()
-
-wormdata2 %>% ggplot(aes(x = Air_Temp, y= WORM_N, color=Year)) + geom_point() + theme_classic()
-
-wormdata2 %>% ggplot(aes(x = DOY, y= WORM_N, color=Year)) + geom_point() + theme_classic()
-# Soil temperature while removing earthworms significantly impacted the number removed
-
-# Test AP and LUM separately
-
-ch4_APm1 = lm(AP_N ~ VWCavg + SoilTavg + CloudCover + Season + Addition, data= wormdata2); summary(ch4_APm1)
-
-1/(1-summary(ch4_APm1)$r.squared) # if VIF > than this, variables are more related to each other than the dependent variable
-
-vif(ch4_APm1) # all less than 5, so OK, but VWCavg is borderline.
-
-ch4_LUMm1 = lm(LUM_N ~ VWCavg + SoilTavg + CloudCover + Season + Addition, data= wormdata2); summary(ch4_LUMm1)
-
-1/(1-summary(ch4_LUMm1)$r.squared) # if VIF > than this, variables are more related to each other than the dependent variable
-
-vif(ch4_LUMm1) # all less than 5, so OK, but VWCavg is borderline.
-
-# SUMMARY: LUM not well manipulated by treatments, but AP was well manipulated. LUM actually higher in removal treatments, which is consistent with their ecological role as a primary colonizer to worm-free areas. Soil temperautre, season, and treatment determine the number of worms removed. Can use SoilTavg as a covariate to models considering the full worm numbers
-
-# . Correct the chapter 4 worm data to account for variable extraction efficiency ----
+# ... 1.0.2 Correct worm data for variable extraction efficiency ----
 
 wormdata3 = wormdata2 %>% filter(SeasonYear == "Fall17"|SeasonYear == "Fall18")
 
-ch4_correctworm <- lm(WORM_N ~ VWCavg + SoilTavg + CloudCover, data= wormdata3); summary(ch4_correctworm) # least significant CloudCover
+ch4_correctworm0 <- lm(WORM_N ~ VWCavg + SoilTavg + CloudCover + Air_Temp, data= wormdata3); summary(ch4_correctworm0) # least significant CloudCover and Air_Temp
 ch4_correctworm <- lm(WORM_N ~ VWCavg + SoilTavg, data= wormdata3); summary(ch4_correctworm) # both significant
 1/(1-summary(ch4_correctworm)$r.squared)
 vif(ch4_correctworm)
+
+# Create table for supplemental material
+sjPlot::tab_model(ch4_correctworm0,ch4_correctworm, collapse.ci = T,pred.labels = c("Intercept", "Volumetric Water Content", "Soil Temperature","Cloud Cover (%)","Air Temperature"), dv.labels = c("Worm (#; all variables)", "Worm (#; selected variables)"),p.style="a")
 
 wormdata3 = wormdata3 %>% 
   select(Plot, Season, Year, WORM_N) %>%
@@ -181,216 +67,120 @@ pbdata = pbdata %>%
   rename(WORM_N_old = WORM_N) %>%
   rename(WORM_N = WORM_N_STD)
 
+# Replace Earthworm in the RDA datafile
+
+RDAdata = RDAdata %>% rename(Earthworm_old = Earthworm) %>% 
+  left_join(pbdata %>% select(Plot, Year, WORM_N)) %>%
+  rename(Earthworm = WORM_N) %>%
+  mutate(Year = as.factor(Year))
+  
+
+
+jpeg(paste0("Stats_plots_from_",Sys.Date(),"/wormStandardization_",Sys.Date(), ".jpeg"), units="in", width=7, height=6, res=600)
+pbdata %>% ggplot(aes(x = WORM_N_old, y = WORM_N, shape=Year, color = Addition)) + geom_point(size = 2) + theme_classic() + xlab("Earthworm (#)") + ylab("Earthworm (residuals)") + scale_color_manual(name = "Earthworm Treatment", values = c("#E69F00", "#56B4E9", "#009E73")) + scale_shape_discrete(labels= c("2017", "2018"))
+dev.off()
+
 # .... Export pbdata to RDS file for using in other code sections
 
 write_rds(pbdata, "Data/pbdata.rds")
 
-# ..Explore VWC data for weather ------------------------------------------
+# .. 1.1 Linear models --------------------
 
-wormdata%>% separate(SeasonYear, into=c("Season", "Year"), sep=-2, remove=F) %>% filter(Season=="Fall") %>% group_by(Year) %>% summarize(sd(VWCavg), mean(VWCavg), sd(SoilTavg), mean(SoilTavg))
-
-m1 = lm(VWCavg~Year, data = wormdata%>% separate(SeasonYear, into=c("Season", "Year"), sep=-2, remove=F) %>% filter(Season=="Fall") %>% mutate(Year = as.factor(Year)))
-summary(glht(m1, linfct = mcp(Year="Tukey")))
-
-wormWE%>% separate(SeasonYear, into=c("Season", "Year"), sep=-2, remove=F) %>% filter(Season=="Fall") %>% group_by(Year) %>% summarize(sd(VWCavg), mean(VWCavg), sd(SoilTavg), mean(SoilTavg))
-
-m1 = lm(VWCavg~Year, data = wormWE%>% separate(SeasonYear, into=c("Season", "Year"), sep=-2, remove=F) %>% filter(Season=="Fall") %>% mutate(Year = as.factor(Year)))
-summary(glht(m1, linfct = mcp(Year="Tukey")))
-
-# ..Explore Soil Data -------------------------------------------------------
-
-summary(lm(SIR~FrozenSIR, data=soildata2 %>% filter(SeasonYear=="Spring17"))) # significant negative effect of freezing on SIR data from spring 2017
-
-# Test relationships between nitrogen data and SIR data
-
-soildata2 %>% ggplot(aes(shape=Season)) + geom_point(aes(x=NTm, y = NTs)) + geom_point(aes(x=NO3m, y = NO3s), color="red") + geom_point(aes(x=NH4m, y = NH4s), color="blue") + theme_classic()
-
-summary(lm(NTs~NTm, data= soildata2)) # 10% related
-summary(lm(NO3s~NO3m, data= soildata2)) # 12% related
-summary(lm(NH4s~NH4m, data= soildata2)) # 20% related
-
-soildata2 %>% ggplot(aes(x=SIR, y = NTm)) + geom_point() + theme_classic()
-
-# Linear models --------------------
-# ----------------Run individual linear models---------------- #
-#......Effect of biomass control --------------------------------------------
-
-bmdata = pbdata %>% filter(HopperAdd!="Add" & Addition!="Add")
-
-bm1 = lmer(PlantBiomass~BiomassCtrl + Year + (1|Plot), data=bmdata); summary(bm1)
-bm2 = lmer(SIR~BiomassCtrl+Year + (1|Plot), data=bmdata); summary(bm2)
-bm3 = lmer(NTs~BiomassCtrl+ Year + (1|Plot), data=bmdata); summary(bm3)
-bm4 = lmer(NTm~BiomassCtrl+ Year + (1|Plot), data=bmdata); summary(bm4)
-
-plot(bm1)
-plot(bm2)
-plot(bm3)
-plot(bm4)
-
-key_label = c(NTm="Lab N Mineralization",
-              NTs="Field N Mineralization",
-              PlantBiomass= "Plant Biomass",
-              SIR="Microbial Biomass")
-
-bmdata2 = bmdata %>% select(BiomassCtrl, PlantBiomass, SIR, NTs, NTm, Year) %>% gather(-BiomassCtrl, -Year, key=Key, value=Measure)
-
-ann_text <- data.frame(Year = c(0.75, 0.75, 0.75, 2.1, 2.1), Measure = c(0.6,1.5, 60, 1.5, 1.45),
-                       Key = as.factor(c("NTm", "NTs", "PlantBiomass", "SIR", "SIR")),
-                       BiomassCtrl= rep("No", 5))
-
-jpeg(paste0("Stats_plots_from_",Sys.Date(),"/BiomassCtrl_Year_",Sys.Date(), ".jpeg"), units="in", width=7, height=7, res=600)
-ggplot(bmdata2, aes(x=Year, y=Measure, color=BiomassCtrl)) + geom_boxplot(outlier.shape = NA) + geom_jitter() + theme_classic() + facet_wrap("Key", scale="free_y", labeller = labeller(Key=key_label)) + geom_text(data = ann_text,label = c("Year*", "Year***", "Year*", "Year***", "BiomassCtrl*"), color="black")
-dev.off()
+linearmodels<- function(inputdata){
+  inputdata[,"Base16"] = inputdata$PlantBiomass16
+  PBinter = lmer(PlantBiomass ~ WORM_N*HopperN + Year + Base16 + (1|Plot), data= inputdata)
+  PBfinal = lmer(PlantBiomass ~ WORM_N + HopperN + Year + Base16 + (1|Plot), data= inputdata)
+  PBaov = anova(PBinter,PBfinal)
+  print(PBaov)
   
-#......Plant Biomass Models ----------------------------------------------------
+  inputdata[,"Base16"] = inputdata$SIR16
+  SIRinter = lmer(SIR ~ WORM_N*HopperN + Base16 + Year + (1|Plot), data= inputdata)
+  SIRfinal = lmer(SIR ~ WORM_N + HopperN + Base16 + Year + (1|Plot), data= inputdata)
+  SIRaov = anova(SIRinter,SIRfinal)
+  print(SIRaov)
+  
+  inputdata[,"Base16"] = inputdata$NTs16
+  NTsinter = lmer(log(NTs) ~ WORM_N*HopperN + Base16 + Year + (1|Plot), data= inputdata, na.action = na.omit)
+  NTsfinal = lmer(log(NTs) ~ WORM_N+ HopperN + Base16 + Year + (1|Plot), data= inputdata, na.action = na.omit)
+  NTsaov = anova(NTsinter,NTsfinal)
+  print(NTsaov)
+  
+  inputdata[,"Base16"] = inputdata$NTm16
+  NTminter = lmer(NTm ~ WORM_N*HopperN + Base16 + Year + (1|Plot), data= inputdata)
+  NTmfinal = lmer(NTm ~ WORM_N + HopperN + Base16 + Year + (1|Plot), data= inputdata)
+  NTmaov = anova(NTminter,NTmfinal)
+  print(NTmaov)
+  
+  # Create table to output results
+  sjPlot::tab_model(PBfinal,SIRfinal, NTsfinal, NTmfinal, collapse.ci = T, 
+                    pred.labels = c("Intercept", "Earthworm (#)", "Grasshopper (#)","Year [2018]","Baseline '16 (of dependent variable)"),
+                    dv.labels = c("Plant Biomass", "Substrate Induced Respiration","Field N mineralization (log)", "Lab N mineralization"), p.style="a")
+}
 
-ch4_PBm17 = lm(PlantBiomass ~ WORM_N*HopperN + PlantBiomass16, data= pbdata %>% filter(Year=="17")) ; summary(ch4_PBm17) # interaction not significant
-ch4_PBm17_1 = update(ch4_PBm17, .~. - WORM_N:HopperN); summary(ch4_PBm17_1)
-1/(1-summary(ch4_PBm17)$r.squared)
-vif(ch4_PBm17)
-par(mfrow=c(2,2)); plot(ch4_PBm17_1); par(mfrow=c(1,1))
+# ... 1.1.1 Original model analysis ----
+linearmodels(pbdata)
 
-anova(ch4_PBm17, ch4_PBm17_1)
+# ... 1.1.2 Model analysis with raw earthworm number ----
+linearmodels(pbdata %>% mutate(WORM_N = WORM_N_old))
 
-ch4_PBm18 = lm(PlantBiomass ~ WORM_N*HopperN + PlantBiomass16, data= pbdata %>% filter(Year=="18")) ; summary(ch4_PBm18) # interaction not significant
-ch4_PBm18_1 = update(ch4_PBm18, .~. - WORM_N:HopperN); summary(ch4_PBm18_1)
-1/(1-summary(ch4_PBm18)$r.squared)
-vif(ch4_PBm18)
-par(mfrow=c(2,2)); plot(ch4_PBm18_1); par(mfrow=c(1,1))
+# ... 1.1.3 Model analysis with high quality earthworm data ----
+pbdata %>% select(Year, WORM_N_old) %>% group_by(Year) %>% summarize(lq = quantile(WORM_N_old, c(0.25)),med = quantile(WORM_N_old, c(0.5)), uq = quantile(WORM_N_old, c(0.75)))
 
-anova(ch4_PBm18, ch4_PBm18_1)
+pbHQ = pbdata %>% filter(Decimated ==0) %>% 
+  filter(HopperAdd=="Add" & HopperN >0 | 
+           HopperAdd!="Add" & HopperN ==0) %>% 
+  filter(Addition=="Add" & Year =="17" & WORM_N_old >9 | 
+           Addition!="Add" & Year =="17" & WORM_N_old <9 |
+           Addition=="Add" & Year =="18" & WORM_N_old >1.5 | 
+           Addition!="Add" & Year =="18" & WORM_N_old <1.5 )
 
-pbdata$Year = as.factor(pbdata$Year)
+linearmodels(pbHQ)
 
-# Put the Years together
-ch4_PBm = lme(PlantBiomass ~ WORM_N*HopperN + PlantBiomass16 + Year, random = ~1|Plot, data= pbdata, method = "ML") ; summary(ch4_PBm)
-vif(ch4_PBm)
-plot(ch4_PBm)
-ch4_PBm_1 = update(ch4_PBm, .~. - WORM_N:HopperN); summary(ch4_PBm_1)
+linearmodels(pbHQ %>% mutate(WORM_N = WORM_N_old))
 
-anova(ch4_PBm, ch4_PBm_1)
+# ... 1.1.4 Model analysis of two years separately ----
 
-ch4_PBm = lme(log(PlantBiomass) ~ WORM_N*HopperN + PlantBiomass16 + Year, random = ~1|Plot, data= pbdata) ; summary(ch4_PBm)
-vif(ch4_PBm)
-plot(ch4_PBm)
-ch4_PBm_1 = update(ch4_PBm, .~. - WORM_N:HopperN); summary(ch4_PBm_1)
-plot(ch4_PBm_1)
-plot(resid(ch4_PBm_1)~pbdata$WORM_N)
-boxplot(resid(ch4_PBm_1)~pbdata$HopperN)
-boxplot(resid(ch4_PBm_1)~pbdata$Year)
-plot(resid(ch4_PBm_1)~pbdata$PlantBiomass16)
+YearSeparateModels<- function(inputdata){
+  
+  inputdata[,"Base16"] = inputdata$PlantBiomass16
+  PBinter = lm(PlantBiomass ~ WORM_N*HopperN + Base16 , data= inputdata)
+  PBfinal = lm(PlantBiomass ~ WORM_N + HopperN + Base16 , data= inputdata)
+  PBaov = anova(PBinter,PBfinal)
+  print(PBaov)
+  
+  inputdata[,"Base16"] = inputdata$SIR16
+  SIRinter = lm(SIR ~ WORM_N*HopperN + Base16 , data= inputdata)
+  SIRfinal = lm(SIR ~ WORM_N + HopperN + Base16 , data= inputdata)
+  SIRaov = anova(SIRinter,SIRfinal)
+  print(SIRaov)
+  
+  inputdata[,"Base16"] = inputdata$NTs16
+  NTsinter = lm(log(NTs) ~ WORM_N*HopperN + Base16 , data= inputdata, na.action = na.omit)
+  NTsfinal = lm(log(NTs) ~ WORM_N+ HopperN + Base16 , data= inputdata, na.action = na.omit)
+  NTsaov = anova(NTsinter,NTsfinal)
+  print(NTsaov)
+  
+  inputdata[,"Base16"] = inputdata$NTm16
+  NTminter = lm(NTm ~ WORM_N*HopperN + Base16 , data= inputdata)
+  NTmfinal = lm(NTm ~ WORM_N + HopperN + Base16 , data= inputdata)
+  NTmaov = anova(NTminter,NTmfinal)
+  print(NTmaov)
+  
+  # Create table to output results
+  sjPlot::tab_model(PBfinal,SIRfinal, NTsfinal, NTmfinal, collapse.ci = T, 
+                    pred.labels = c("Intercept", "Earthworm (#)", "Grasshopper (#)", "Baseline '16 (of dependent variable)"),
+                    dv.labels = c("Plant Biomass", "Substrate Induced Respiration","Field N mineralization (log)", "Lab N mineralization"), p.style="a")
+}
 
-ch4_PBm_plot = lme(PlantBiomass ~ WORM_N + HopperN + PlantBiomass16 + Year, random = ~1|Plot, data= pbdata)
+# No interactions in 2017
+YearSeparateModels(pbdata %>% filter(Year == "17"))
 
-ch4_PBm_1 = lme(log(PlantBiomass) ~ WORM_N + HopperN*Year + PlantBiomass16, random = ~1|Plot, data= pbdata) ; summary(ch4_PBm_1)
-plot(ch4_PBm_1)
-plot(resid(ch4_PBm_1)~pbdata$WORM_N)
-boxplot(resid(ch4_PBm_1)~pbdata$HopperN)
-boxplot(resid(ch4_PBm_1)~pbdata$Year)
-plot(resid(ch4_PBm_1)~pbdata$PlantBiomass16)
+# No interactions in 2018
+YearSeparateModels(pbdata %>% filter(Year == "18"))
 
-#......SIR Models ----------------------------------------------------
+# ... 1.1.5 Plot the results ----
 
-ch4_SIRm17_1 = lm(SIR ~ WORM_N*HopperN + SIR16, data= pbdata %>% filter(Year=="17")) ; summary(ch4_SIRm17_1) # interaction not significant
-ch4_SIRm17 = update(ch4_SIRm17_1, .~. - WORM_N:HopperN); summary(ch4_SIRm17)
-1/(1-summary(ch4_SIRm17)$r.squared)
-vif(ch4_SIRm17)
-
-anova(ch4_SIRm17_1,ch4_SIRm17)
-
-ch4_SIRm18_1 = lm(SIR ~ WORM_N*HopperN + SIR16, data= pbdata %>% filter(Year=="18")) ; summary(ch4_SIRm18_1) # interaction not significant
-ch4_SIRm18 = update(ch4_SIRm18_1, .~. - WORM_N:HopperN); summary(ch4_SIRm18)
-1/(1-summary(ch4_SIRm18)$r.squared)
-vif(ch4_SIRm18)
-
-anova(ch4_SIRm18_1,ch4_SIRm18)
-
-# hoppers have the most convincing effect on SIR
-
-# Put the Years together
-ch4_SIRm = lme(SIR ~ WORM_N*HopperN + SIR16 + Year, random = ~1|Plot, data= pbdata, method = "ML") ; summary(ch4_SIRm)
-vif(ch4_SIRm)
-plot(ch4_SIRm)
-ch4_SIRm_1 = update(ch4_SIRm, .~. - WORM_N:HopperN); summary(ch4_SIRm_1)
-
-anova(ch4_SIRm, ch4_SIRm_1)
-
-ch4_SIRm = lme(SIR ~ WORM_N*HopperN + SIR16 + Year, random = ~1|Plot, data= pbdata) ; summary(ch4_SIRm)
-vif(ch4_SIRm)
-plot(ch4_SIRm)
-ch4_SIRm_1 = update(ch4_SIRm, .~. - WORM_N:HopperN); summary(ch4_SIRm_1)
-plot(resid(ch4_SIRm_1)~pbdata$WORM_N)
-boxplot(resid(ch4_SIRm_1)~pbdata$Year)
-plot(resid(ch4_SIRm_1)~jitter(pbdata$HopperN))
-plot(resid(ch4_SIRm_1)~pbdata$SIR16)
-
-#......NTs Models ----------------------------------------------------
-
-ch4_NTsm17_1 = lm(NTs ~ WORM_N*HopperN + NTs16, data= pbdata %>% filter(Year=="17")) ; summary(ch4_NTsm17_1) # interaction not significant
-ch4_NTsm17 = update(ch4_NTsm17_1, .~. - WORM_N:HopperN); summary(ch4_NTsm17)
-1/(1-summary(ch4_NTsm17)$r.squared)
-vif(ch4_NTsm17)
-
-anova(ch4_NTsm17_1,ch4_NTsm17)
-
-ch4_NTsm18_1 = lm(NTs ~ WORM_N*HopperN + NTs16, data= pbdata %>% filter(Year=="18")) ; summary(ch4_NTsm18_1) # interaction not significant
-ch4_NTsm18 = update(ch4_NTsm18_1, .~. - WORM_N:HopperN); summary(ch4_NTsm18)
-1/(1-summary(ch4_NTsm18)$r.squared)
-vif(ch4_NTsm18)
-
-anova(ch4_NTsm18_1,ch4_NTsm18)
-
-# both increased NTs in 2017 and 2018
-
-# Put the Years together
-ch4_NTsm = lme(log(NTs) ~ WORM_N*HopperN + NTs16 + Year, random = ~1|Plot, data= pbdata, method = "ML", na.action = na.omit) ; summary(ch4_NTsm)
-vif(ch4_NTsm)
-plot(ch4_NTsm)
-ch4_NTsm_1 = update(ch4_NTsm, .~. - WORM_N:HopperN); summary(ch4_NTsm_1)
-
-anova(ch4_NTsm, ch4_NTsm_1)
-
-ch4_NTsm = lme(log(NTs) ~ WORM_N*HopperN + NTs16 + Year, random = ~1|Plot, data= pbdata, na.action = na.omit) ; summary(ch4_NTsm)
-vif(ch4_NTsm)
-plot(ch4_NTsm)
-ch4_NTsm_1 = update(ch4_NTsm, .~. - WORM_N:HopperN); summary(ch4_NTsm_1)
-
-ch4_NTsm_plot = lme(NTs ~ WORM_N + HopperN + NTs16 + Year, random = ~1|Plot, data= pbdata, na.action = na.omit)
-
-#......NTm Models ----------------------------------------------------
-
-ch4_NTmm17_1 = lm(NTm ~ WORM_N*HopperN + NTm16, data= pbdata %>% filter(Year=="17")) ; summary(ch4_NTmm17_1) # interaction not significant
-ch4_NTmm17 = update(ch4_NTmm17_1, .~. - WORM_N:HopperN); summary(ch4_NTmm17)
-1/(1-summary(ch4_NTmm17)$r.squared)
-vif(ch4_NTmm17)
-
-anova(ch4_NTmm17_1,ch4_NTmm17)
-
-ch4_NTmm18_1 = lm(NTm ~ WORM_N*HopperN + NTm16, data= pbdata %>% filter(Year=="18")) ; summary(ch4_NTmm18_1) # interaction not significant
-ch4_NTmm18 = update(ch4_NTmm18_1, .~. - WORM_N:HopperN); summary(ch4_NTmm18)
-1/(1-summary(ch4_NTmm18)$r.squared)
-vif(ch4_NTmm18)
-
-anova(ch4_NTmm18_1,ch4_NTmm18)
-
-# worms increased NTm in 2017, no significant effects in 2018
-
-# Put the Years together
-ch4_NTmm = lme(NTm ~ WORM_N*HopperN + NTm16 + Year, random = ~1|Plot, data= pbdata, method = "ML") ; summary(ch4_NTmm)
-vif(ch4_NTmm)
-plot(ch4_NTmm)
-ch4_NTmm_1 = update(ch4_NTmm, .~. - WORM_N:HopperN); summary(ch4_NTmm_1)
-
-anova(ch4_NTmm, ch4_NTmm_1)
-
-ch4_NTmm = lme(NTm ~ WORM_N*HopperN + NTm16 + Year, random = ~1|Plot, data= pbdata) ; summary(ch4_NTmm)
-vif(ch4_NTmm)
-plot(ch4_NTmm)
-ch4_NTmm_1 = update(ch4_NTmm, .~. - WORM_N:HopperN); summary(ch4_NTmm_1)
-
-
-
-#......Output Models -----------------------------------------------------
+pbdata = pbdata %>% mutate(Year = as.factor(Year))
 
 jpeg(paste0("Stats_plots_from_",Sys.Date(),"/Figure3_",Sys.Date(), ".jpeg"), units="in", width=6, height=8, res=600)
 
@@ -472,210 +262,40 @@ mtext(text="Earthworm (residuals)", side=1, outer=T, adj=0.25, line=1)
 mtext(text="Grasshopper (#)", side=1, outer=T, adj=0.85, line=1)
 dev.off()
 
-# Create table to output results
-sjPlot::tab_model(PBfinal,SIRfinal, NTsfinal, NTmfinal, collapse.ci = T,
-                  pred.labels = c("Intercept", "Earthworm (#)", "Grasshopper (#)",
-                                  "Year [2018]","Baseline '16 (of dependent variable)"),
-                  dv.labels = c("Plant Biomass", "Substrate Induced Respiration",
-                                "Field N mineralization (log)", "Lab N mineralization"),
-                  p.style="a")
-
 pbdata = pbdata %>% select(-Base16)
 
 rm(PBfinal,SIRfinal, NTsfinal, NTmfinal)
 
-# Test models on a subset of the data of high quality ---------------------
+#.... 1.1.6 Effect of biomass control ----
 
-# Overall general effect size stays the same, but getting rid of the bunch of worm data makes the PB interaction no longer significant.
+bmdata = pbdata %>% filter(HopperAdd!="Add" & Addition!="Add")
 
-pbdata %>% select(Year, WORM_N) %>% group_by(Year) %>% summarize(lq = quantile(WORM_N, c(0.25)),med = quantile(WORM_N, c(0.5)), uq = quantile(WORM_N, c(0.75)))
+bm1 = lmer(PlantBiomass~BiomassCtrl + Year + (1|Plot), data=bmdata); summary(bm1)
+bm2 = lmer(SIR~BiomassCtrl+Year + (1|Plot), data=bmdata); summary(bm2)
+bm3 = lmer(NTs~BiomassCtrl+ Year + (1|Plot), data=bmdata); summary(bm3)
+bm4 = lmer(NTm~BiomassCtrl+ Year + (1|Plot), data=bmdata); summary(bm4)
 
-pbdata %>% select(Year, WORM_N) %>% group_by(Year) %>% summarize(lq = quantile(WORM_N, c(0.33)), uq = quantile(WORM_N, c(0.66)))
+plot(bm1)
+plot(bm2)
+plot(bm3)
+plot(bm4)
 
-pbHQ = pbdata %>% filter(Decimated ==0) %>% 
-  filter(HopperAdd=="Add" & HopperN >0 | 
-           HopperAdd!="Add" & HopperN ==0) %>% 
-  filter(Addition=="Add" & Year =="17" & WORM_N >8 | 
-           Addition!="Add" & Year =="17" & WORM_N <13 |
-           Addition=="Add" & Year =="18" & WORM_N >0 | 
-           Addition!="Add" & Year =="18" & WORM_N <2 )
+key_label = c(NTm="Lab N Mineralization",
+              NTs="Field N Mineralization",
+              PlantBiomass= "Plant Biomass",
+              SIR="Microbial Biomass")
 
-# Full separation
-pbHQ = pbdata %>% filter(Decimated ==0) %>% 
-  filter(HopperAdd=="Add" & HopperN >0 | 
-           HopperAdd!="Add" & HopperN ==0) %>% 
-  filter(Addition=="Add" & Year =="17" & WORM_N >9 | 
-           Addition!="Add" & Year =="17" & WORM_N <9 |
-           Addition=="Add" & Year =="18" & WORM_N >1.5 | 
-           Addition!="Add" & Year =="18" & WORM_N <1.5 )
+bmdata2 = bmdata %>% select(BiomassCtrl, PlantBiomass, SIR, NTs, NTm, Year) %>% gather(-BiomassCtrl, -Year, key=Key, value=Measure)
 
+ann_text <- data.frame(Year = c(0.75, 0.75, 0.75, 2.1, 2.1), Measure = c(0.6,1.5, 60, 1.5, 1.45),
+                       Key = as.factor(c("NTm", "NTs", "PlantBiomass", "SIR", "SIR")),
+                       BiomassCtrl= rep("No", 5))
 
-#......Plant Biomass Models ---------------------------------------------------
-
-ch4_PBm17 = lm(PlantBiomass ~ WORM_N*HopperN + PlantBiomass16, data= pbHQ %>% filter(Year=="17")) ; summary(ch4_PBm17) # interaction not significant
-ch4_PBm17_1 = update(ch4_PBm17, .~. - WORM_N:HopperN); summary(ch4_PBm17_1)
-1/(1-summary(ch4_PBm17)$r.squared)
-vif(ch4_PBm17)
-par(mfrow=c(2,2)); plot(ch4_PBm17_1); par(mfrow=c(1,1))
-
-anova(ch4_PBm17, ch4_PBm17_1)
-
-ch4_PBm18 = lm(PlantBiomass ~ WORM_N*HopperN + PlantBiomass16, data= pbHQ %>% filter(Year=="18")) ; summary(ch4_PBm18) # interaction not significant
-ch4_PBm18_1 = update(ch4_PBm18, .~. - WORM_N:HopperN); summary(ch4_PBm18_1)
-1/(1-summary(ch4_PBm18)$r.squared)
-vif(ch4_PBm18)
-par(mfrow=c(2,2)); plot(ch4_PBm18_1); par(mfrow=c(1,1))
-
-anova(ch4_PBm18, ch4_PBm18_1)
-
-pbHQ$Year = as.factor(pbHQ$Year)
-
-# Put the Years together
-ch4_PBm = lme(PlantBiomass ~ WORM_N*HopperN + PlantBiomass16 + Year, random = ~1|Plot, data= pbHQ, method = "ML") ; summary(ch4_PBm)
-vif(ch4_PBm)
-plot(ch4_PBm)
-ch4_PBm_1 = update(ch4_PBm, .~. - WORM_N:HopperN); summary(ch4_PBm_1)
-
-anova(ch4_PBm, ch4_PBm_1)
-
-ch4_PBm = lme(PlantBiomass ~ WORM_N*HopperN + PlantBiomass16 + Year, random = ~1|Plot, data= pbHQ) ; summary(ch4_PBm)
-vif(ch4_PBm)
-plot(ch4_PBm)
-ch4_PBm_1 = update(ch4_PBm, .~. - WORM_N:HopperN); summary(ch4_PBm_1)
-
-#......SIR Models ----------------------------------------------------
-
-ch4_SIRm17_1 = lm(SIR ~ WORM_N*HopperN + SIR16, data= pbHQ %>% filter(Year=="17")) ; summary(ch4_SIRm17_1) # interaction not significant
-ch4_SIRm17 = update(ch4_SIRm17_1, .~. - WORM_N:HopperN); summary(ch4_SIRm17)
-1/(1-summary(ch4_SIRm17)$r.squared)
-vif(ch4_SIRm17)
-
-anova(ch4_SIRm17_1,ch4_SIRm17)
-
-ch4_SIRm18_1 = lm(SIR ~ WORM_N*HopperN + SIR16, data= pbHQ %>% filter(Year=="18")) ; summary(ch4_SIRm18_1) # interaction not significant
-ch4_SIRm18 = update(ch4_SIRm18_1, .~. - WORM_N:HopperN); summary(ch4_SIRm18)
-1/(1-summary(ch4_SIRm18)$r.squared)
-vif(ch4_SIRm18)
-
-anova(ch4_SIRm18_1,ch4_SIRm18)
-
-# hoppers have the most convincing effect on SIR
-
-# Put the Years together
-ch4_SIRm = lme(SIR ~ WORM_N*HopperN + SIR16 + Year, random = ~1|Plot, data= pbHQ, method = "ML") ; summary(ch4_SIRm)
-vif(ch4_SIRm)
-plot(ch4_SIRm)
-ch4_SIRm_1 = update(ch4_SIRm, .~. - WORM_N:HopperN); summary(ch4_SIRm_1)
-
-anova(ch4_SIRm, ch4_SIRm_1)
-
-ch4_SIRm = lme(SIR ~ WORM_N*HopperN + SIR16 + Year, random = ~1|Plot, data= pbHQ) ; summary(ch4_SIRm)
-vif(ch4_SIRm)
-plot(ch4_SIRm)
-ch4_SIRm_1 = update(ch4_SIRm, .~. - WORM_N:HopperN); summary(ch4_SIRm_1)
-
-#......NTs Models ----------------------------------------------------
-
-ch4_NTsm17_1 = lm(NTs ~ WORM_N*HopperN + NTs16, data= pbHQ %>% filter(Year=="17")) ; summary(ch4_NTsm17_1) # interaction not significant
-ch4_NTsm17 = update(ch4_NTsm17_1, .~. - WORM_N:HopperN); summary(ch4_NTsm17)
-1/(1-summary(ch4_NTsm17)$r.squared)
-vif(ch4_NTsm17)
-
-anova(ch4_NTsm17_1,ch4_NTsm17)
-
-ch4_NTsm18_1 = lm(NTs ~ WORM_N*HopperN + NTs16, data= pbHQ %>% filter(Year=="18")) ; summary(ch4_NTsm18_1) # interaction not significant
-ch4_NTsm18 = update(ch4_NTsm18_1, .~. - WORM_N:HopperN); summary(ch4_NTsm18)
-1/(1-summary(ch4_NTsm18)$r.squared)
-vif(ch4_NTsm18)
-
-anova(ch4_NTsm18_1,ch4_NTsm18)
-
-# both increased NTs in 2017 and 2018
-
-# Put the Years together
-ch4_NTsm = lme(log(NTs) ~ WORM_N*HopperN + NTs16 + Year, random = ~1|Plot, data= pbHQ, method = "ML", na.action = na.omit) ; summary(ch4_NTsm)
-vif(ch4_NTsm)
-plot(ch4_NTsm)
-ch4_NTsm_1 = update(ch4_NTsm, .~. - WORM_N:HopperN); summary(ch4_NTsm_1)
-
-anova(ch4_NTsm, ch4_NTsm_1)
-
-ch4_NTsm = lme(log(NTs) ~ WORM_N*HopperN + NTs16 + Year, random = ~1|Plot, data= pbHQ, na.action = na.omit) ; summary(ch4_NTsm)
-vif(ch4_NTsm)
-plot(ch4_NTsm)
-ch4_NTsm_1 = update(ch4_NTsm, .~. - WORM_N:HopperN); summary(ch4_NTsm_1)
-
-ch4_NTsm_plot = lme(NTs ~ WORM_N + HopperN + NTs16 + Year, random = ~1|Plot, data= pbHQ, na.action = na.omit)
-
-#......NTm Models ----------------------------------------------------
-
-ch4_NTmm17_1 = lm(NTm ~ WORM_N*HopperN + NTm16, data= pbHQ %>% filter(Year=="17")) ; summary(ch4_NTmm17_1) # interaction not significant
-ch4_NTmm17 = update(ch4_NTmm17_1, .~. - WORM_N:HopperN); summary(ch4_NTmm17)
-1/(1-summary(ch4_NTmm17)$r.squared)
-vif(ch4_NTmm17)
-
-anova(ch4_NTmm17_1,ch4_NTmm17)
-
-ch4_NTmm18_1 = lm(NTm ~ WORM_N*HopperN + NTm16, data= pbHQ %>% filter(Year=="18")) ; summary(ch4_NTmm18_1) # interaction not significant
-ch4_NTmm18 = update(ch4_NTmm18_1, .~. - WORM_N:HopperN); summary(ch4_NTmm18)
-1/(1-summary(ch4_NTmm18)$r.squared)
-vif(ch4_NTmm18)
-
-anova(ch4_NTmm18_1,ch4_NTmm18)
-
-# worms increased NTm in 2017, no significant effects in 2018
-
-# Put the Years together
-ch4_NTmm = lme(NTm ~ WORM_N*HopperN + NTm16 + Year, random = ~1|Plot, data= pbHQ, method = "ML") ; summary(ch4_NTmm)
-vif(ch4_NTmm)
-plot(ch4_NTmm)
-ch4_NTmm_1 = update(ch4_NTmm, .~. - WORM_N:HopperN); summary(ch4_NTmm_1)
-
-anova(ch4_NTmm, ch4_NTmm_1)
-
-ch4_NTmm = lme(NTm ~ WORM_N*HopperN + NTm16 + Year, random = ~1|Plot, data= pbHQ) ; summary(ch4_NTmm)
-vif(ch4_NTmm)
-plot(ch4_NTmm)
-ch4_NTmm_1 = update(ch4_NTmm, .~. - WORM_N:HopperN); summary(ch4_NTmm_1)
-
-# Explore WE data ----
-
-W_PBm17 = lm(PlantBiomass~WORM_N + PlantBiomass16, data= pbdataWE %>% filter(Year=="17")); summary(W_PBm17)
-
-W_PBm18 = lm(PlantBiomass~WORM_N + PlantBiomass16, data= pbdataWE %>% filter(Year=="18")); summary(W_PBm18)
-
-W_S17 = lm(SIR~WORM_N + SIR16, data= pbdataWE %>% filter(Year=="17")); summary(W_PBm17)
-
-W_S18 = lm(SIR~WORM_N + SIR16, data= pbdataWE %>% filter(Year=="18")); summary(W_PBm18)
-
-W_Ns17 = lm(NTs~WORM_N + NTs16, data= pbdataWE %>% filter(Year=="17")); summary(W_PBm17)
-
-W_Ns18 = lm(NTs~WORM_N + NTs16, data= pbdataWE %>% filter(Year=="18")); summary(W_PBm18)
-
-W_Nm17 = lm(NTm~WORM_N + NTm16, data= pbdataWE %>% filter(Year=="17")); summary(W_PBm18)
-
-W_Nm18 = lm(NTm~WORM_N + NTm16, data= pbdataWE %>% filter(Year=="18")); summary(W_PBm18)
-
-# no significant effects of previous biomass, SIR, NTs, or WORM_N on plant biomass in these plots
-
-W_PBm17 = lm(PlantBiomass~Treatment + PlantBiomass16, data= pbdataWE %>% filter(Year=="17")); summary(W_PBm17)
-
-W_PBm18 = lm(PlantBiomass~Treatment + PlantBiomass16, data= pbdataWE %>% filter(Year=="18")); summary(W_PBm18)
-
-W_S17 = lm(SIR~Treatment + SIR16, data= pbdataWE %>% filter(Year=="17")); summary(W_PBm17)
-
-W_S18 = lm(SIR~Treatment + SIR16, data= pbdataWE %>% filter(Year=="18")); summary(W_PBm18)
-
-W_Ns17 = lm(NTs~Treatment + NTs16, data= pbdataWE %>% filter(Year=="17")); summary(W_PBm17)
-
-W_Ns18 = lm(NTs~Treatment + NTs16, data= pbdataWE %>% filter(Year=="18")); summary(W_PBm18)
-
-W_Nm17 = lm(NTm~Treatment + NTm16, data= pbdataWE %>% filter(Year=="17")); summary(W_PBm18)
-
-W_Nm18 = lm(NTm~Treatment + NTm16, data= pbdataWE %>% filter(Year=="18")); summary(W_PBm18)
-
-# Plant Community Composition Analysis: RDA -------------------------------
-# ...Expt Plots ---------------------------------------------------------
+jpeg(paste0("Stats_plots_from_",Sys.Date(),"/BiomassCtrl_Year_",Sys.Date(), ".jpeg"), units="in", width=7, height=7, res=600)
+ggplot(bmdata2, aes(x=Year, y=Measure, color=BiomassCtrl)) + geom_boxplot(outlier.shape = NA) + geom_jitter() + theme_classic() + facet_wrap("Key", scale="free_y", labeller = labeller(Key=key_label)) + geom_text(data = ann_text,label = c("Year*", "Year***", "Year*", "Year***", "BiomassCtrl*"), color="black")
+dev.off()
+  
+# .. 1.2 Plant Community Composition Analysis: RDA -------------------------------
 
 planthel = decostand(RDAdata %>% select(ACMI:VICR), "hellinger")
 
@@ -707,10 +327,8 @@ dev.off()
 jpeg(paste0("Stats_plots_from_",Sys.Date(),"/RDA_Expt_",Sys.Date(), ".jpeg"), units="in", width=7, height=7, res=600)
 plot(rda1, type="n", xlab=paste0("RDA1 (", prop_explained[1],"%)"), ylab=paste0("RDA2 (", prop_explained[2],"%)"))
 points(rda1, display= "sites", choices=c(1,2), scaling=2, cex=0.5, col="grey",pch=ifelse(RDAdata$Year=="17", 19, 17))
-# ordiellipse(rda1, groups=RDAdata$wxh,col= c("black", "grey40"), lwd=3, label=T)
 ordiellipse(rda1, groups=RDAdata$Year,col= c("black", "grey40"), lwd=3, label=F)
 text(rda1, display="bp", choices=c(1,2), scaling=2, col=c("blue","blue","orange","blue"), select=c(T,T, F,T, T))
-#ordiellipse(rda1, groups=RDAdata$BiomassCtrl,col= c("black", "grey40"), lwd=3, label=T)
 text(rda1, display= "sp", choices=c(1,2), scaling=2, cex=0.5, col="red")
 legend("bottomleft", legend=bquote(italic(R)^2 == .(format(R2, digits = 3))), bty="n")
 
@@ -724,40 +342,34 @@ abline(h=0, lty = 3); abline(v=0, lty=3)
 text(rda1, display= "sp", choices=c(1,2), scaling=2, cex=0.45, col="red")
 dev.off()
 
-# ...Worm Extraction Plots ---------------------------------------------------
 
-planthel = decostand(RDAWdata %>% select(ACMI:VILA), "hellinger")
+# .... 1.2.1 Cover and worm analysis of the data-----
 
-rda2 = rda(planthel~ WORM_N + Year + PlantBiomass + Treatment + Condition(PlantBiomass16), data=RDAWdata)
+coverworm = percentcover %>% separate(SeasonYear, into=c("Season", "Year"), sep=-2) %>% select(-Date, -ExperimentStart, - DOE, -Season) %>% gather(-Plot, -Year, -DOY, key=Plant, value=Cover) %>% 
+  left_join(read_csv("Data/plant_groups_ch4.csv")) %>% # can add this information
+  filter(DOY!=150) %>% # remove second spring survey so 2017 and 2018 have the same # of surveys
+  filter(!is.na(Cover)) %>% group_by(Plot, Year,Plant, Fcn_grp) %>% 
+  summarise(Cover = mean(Cover)) %>% ungroup() %>% group_by(Plot, Year, Fcn_grp) %>% 
+  summarise(Cover=sum(Cover)) %>% ungroup() %>% 
+  filter(Fcn_grp %in% c("legume", "forb", "grass")) %>% 
+  left_join(wormdata2 %>% filter(Season=="Spring") %>% 
+              select(Plot, Year, Addition, WORM_N))
 
-summary(rda2)
-coef(rda2)
+coverworm %>% ggplot(aes(x=WORM_N, y=Cover, color=Year)) + geom_point() + theme_classic() + facet_grid(Fcn_grp~.) + stat_smooth(method="lm")
 
-(R2 <- RsquareAdj(rda2)$r.squared)
+summary(lm(Cover~WORM_N+Year, data=coverworm %>% filter(Fcn_grp =="legume")))
+summary(lm(Cover~WORM_N+Year, data=coverworm %>% filter(Fcn_grp =="grass")))
+summary(lm(Cover~WORM_N+Year, data=coverworm %>% filter(Fcn_grp =="forb")))
 
-# Gloabl test of the RDA result
-anova.cca(rda2, step=1000)
-# Tests of all canonical axes
-anova.cca(rda2, by="axis", step=1000)
-# Tests of all terms
-anova.cca(rda2, by="terms", step=1000)
-# Tests of all terms
-anova.cca(rda2, by="margin", step=1000)
+summary(lm(Cover~Addition+Year, data=coverworm %>% filter(Fcn_grp =="legume")))
+summary(lm(Cover~Addition+Year, data=coverworm %>% filter(Fcn_grp =="grass")))
+summary(lm(Cover~Addition+Year, data=coverworm %>% filter(Fcn_grp =="forb")))
 
-(prop_explained = round(rda2$CCA$eig/rda2$tot.chi*100,1))
+# worm treatment or number don't explain changes in cover...largest effect is time with forbs replacing clover.
 
-jpeg(paste0("Stats_plots_from_",Sys.Date(),"/RDA_WE_",Sys.Date(), ".jpeg"), units="in", width=7, height=7, res=600)
-plot(rda2, type="n", xlab=paste0("RDA1 (", prop_explained[1],"%; ns)"), ylab=paste0("RDA2 (", prop_explained[2],"%; ns)"))
-points(rda2, display= "sites", choices=c(1,2), scaling=2, pch=ifelse(RDAWdata$Year=="17", 19, 17),col=ifelse(RDAWdata$Treatment=="Remove", "black", "grey"))
-text(rda2, display="bp", choices=c(1,2), scaling=2, col=c("blue","orange"), select=c(T,F, T,F))
-#ordiellipse(rda2, groups=RDAWdata$Year,col= c("black", "grey"), lwd=3, label=T)
-#ordiellipse(rda2, groups=RDAWdata$Treatment,col= c("purple", "cyan"), lwd=3, lty=2, label=T)
-text(rda2, display= "sp", choices=c(1,2), scaling=2, cex=0.5, col="red")
-legend("topright", legend=bquote(italic(R)^2 == .(format(R2, digits = 3))), bty="n")
-legend("bottomright", legend=c("`17", "`18", "Control", "Remove"), col=c("grey30", "grey30", "grey", "black"), bty="n", pch=c(19,17, 15,15))
-dev.off()
+rm(coverworm)
 
-# Run SEM Models ----
+# .. 1.3 Run SEM Models ----
 
 Totals = RDAdata %>% select(ACMI:VICR) %>% rowSums()
 
@@ -777,7 +389,8 @@ pbdata_SEM = pcdata %>%
   mutate_at(c("WORM_N", "HopperN", "SIR", "NTs", "NTm", 
               "PlantBiomass16", "SoilTavg","VWCavg", "NTm16", 
               "NTs16", "SIR16", "AP_N", "LUM_N", "SOAL", "TRPR", 
-              "TRPR16", "SOALbase"),funs(scale))
+              "TRPR16", "SOALbase"),funs(scale)) %>%
+  mutate(Year = as.character(Year))
 
 SEM1 <- psem(lme(PlantBiomass ~ WORM_N*HopperN + SIR + NTs + NTm + PlantBiomass16 + SOAL + TRPR + Year,random=~1|Plot, data=pbdata_SEM),
              lme(SOAL ~WORM_N*HopperN + SOALbase + Year,random=~1|Plot, data=pbdata_SEM),
@@ -836,8 +449,6 @@ data.frame(Model = c("All H x W interations", "Only plant interaction", "No inte
            AIC = c(AIC(SEM1),AIC(SEM2),AIC(SEM3))
 )
 
-# NEED TO FIX THIS WRANGLING OF THE SEM TABLE OUTPUT!!
-
 SEM3a$coefficients[,1:8] %>%
   left_join(
     data.frame(Response = unique(SEM3a$coefficients$Response),
@@ -889,3 +500,100 @@ fplot = SEM3a$coefficients[(SEM3a$coefficients$P.Value < 0.05 & !is.na(SEM3a$coe
 fplot[,"EstimateScale"] = scales::rescale(abs(fplot$Estimate), to = c(1,6))
 
 fplot[,c("Response","Predictor", "EstimateScale")]
+
+# 2.0 Worm Extraction Plot analysis ----
+# .... 2.0.1 Explore WE worm data ----
+jpeg(paste0("Stats_plots_from_",Sys.Date(),"/Worm_QCQA_WE_",Sys.Date(), ".jpeg"), units="in", width=7, height=7, res=600)
+ggplot(wormWE,aes(x=SeasonYear, y=WORM_N,color=Treatment)) + geom_boxplot() + theme_classic() + geom_jitter(height = 0) + scale_x_discrete(limits=c("Fall16","Spring17", "Fall17","Spring18", "Fall18"), labels = c("Fall '16","Spring '17", "Fall '17","Spring '18", "Fall '18")) + ylab("Earthworm (#)") + xlab("Season and Year") 
+# Fall 2018 is the lowest year, significant relative to other falls, but not the spring numbers.
+dev.off()
+
+ggplot(wormWE,aes(x=SeasonYear, y=AP_N,color=Treatment)) + geom_boxplot() + theme_classic() + geom_jitter(height = 0) + scale_x_discrete(limits=c("Fall16","Spring17", "Fall17","Spring18", "Fall18"), labels = c("Fall '16","Spring '17", "Fall '17","Spring '18", "Fall '18")) + ylab("Earthworm (#)") + xlab("Season and Year") 
+
+ggplot(wormWE,aes(x=SeasonYear, y=LUM_N,color=Treatment)) + geom_boxplot() + theme_classic() + geom_jitter(height = 0) + scale_x_discrete(limits=c("Fall16","Spring17", "Fall17","Spring18", "Fall18"), labels = c("Fall '16","Spring '17", "Fall '17","Spring '18", "Fall '18")) + ylab("Earthworm (#)") + xlab("Season and Year") 
+
+summary(lmer(WORM_N~Treatment + DOE + SoilTavg + CloudCover + (1|Plot), data= wormWE %>% filter(DOE > 500)))
+summary(lm(AP_N~Treatment + DOE+ SoilTavg + CloudCover, data= wormWE %>% filter(DOE > 500)))
+summary(lm(LUM_N~Treatment + DOE+ SoilTavg + CloudCover, data= wormWE %>% filter(DOE > 500))) # not significantly reduced
+summary(lm(Worm_Wt~Treatment + DOE+ SoilTavg + CloudCover, data= wormWE %>% filter(DOE > 500)))
+summary(lm(AP_Wt~Treatment + DOE+ SoilTavg + CloudCover, data= wormWE %>% filter(DOE > 500))) 
+summary(lm(LUM_Wt~Treatment + DOE+ SoilTavg + CloudCover, data= wormWE %>% filter(DOE > 500))) # significantly reduced the weight of LUM, but see above not numbers (i.e. colonization)
+
+# .... 2.0.2 Correct worm data for variable extraction efficiency
+WE_correctworm0 <- lm(WORM_N~SoilTavg + VWCavg + CloudCover + Air_Temp, data = pbdataWE); summary(WE_correctworm0)
+WE_correctworm <- lm(WORM_N~ SoilTavg + VWCavg, data = pbdataWE); summary(WE_correctworm)
+
+pbdataWE = pbdataWE %>% 
+  rename(WORM_N_old = WORM_N) %>%
+  mutate(WORM_N = resid(WE_correctworm))
+
+# .. 2.1 Linear Models ----
+# ... 2.1.1 Model analysis of years together ----
+
+WEmodels = vector("list", 4)
+
+WEmodels[[1]] = lmer(PlantBiomass~WORM_N + PlantBiomass16 + Year + (1|Plot), data= pbdataWE); summary(WEmodels[[1]])
+plot(WEmodels[[1]])
+plot(resid(WEmodels[[1]])~pbdataWE$WORM_N)
+
+WEmodels[[2]] = lmer(SIR~WORM_N + SIR16 + Year + (1|Plot), data= pbdataWE); summary(WEmodels[[2]])
+plot(WEmodels[[2]])
+plot(resid(WEmodels[[2]])~pbdataWE$WORM_N)
+
+WEmodels[[3]] = lmer(NTs~WORM_N + NTs16 + Year + (1|Plot), data= pbdataWE); summary(WEmodels[[3]])
+plot(WEmodels[[3]])
+plot(resid(WEmodels[[3]])~pbdataWE$WORM_N)
+
+WEmodels[[4]] = lmer(NTm~WORM_N + NTm16 + Year + (1|Plot), data= pbdataWE); summary(WEmodels[[4]])
+plot(WEmodels[[4]])
+plot(resid(WEmodels[[4]])~pbdataWE$WORM_N)
+
+# ... 2.1.2 Model analysis of two years separately ----
+W_PBm17 = lm(PlantBiomass~WORM_N + PlantBiomass16, data= pbdataWE %>% filter(Year=="17")); summary(W_PBm17)
+
+W_PBm18 = lm(PlantBiomass~WORM_N + PlantBiomass16, data= pbdataWE %>% filter(Year=="18")); summary(W_PBm18)
+
+W_S17 = lm(SIR~WORM_N + SIR16, data= pbdataWE %>% filter(Year=="17")); summary(W_S17)
+
+W_S18 = lm(SIR~WORM_N + SIR16, data= pbdataWE %>% filter(Year=="18")); summary(W_S18)
+
+W_Ns17 = lm(NTs~WORM_N + NTs16, data= pbdataWE %>% filter(Year=="17")); summary(W_Ns17)
+
+W_Ns18 = lm(NTs~WORM_N + NTs16, data= pbdataWE %>% filter(Year=="18")); summary(W_Ns18)
+
+W_Nm17 = lm(NTm~WORM_N + NTm16, data= pbdataWE %>% filter(Year=="17")); summary(W_Nm17)
+
+W_Nm18 = lm(NTm~WORM_N + NTm16, data= pbdataWE %>% filter(Year=="18")); summary(W_Nm18)
+
+# no significant effects of previous biomass, SIR, NTs, or WORM_N on plant biomass in these plots
+
+# .. Plant Community Composition Analysis: RDA ----
+
+planthel = decostand(RDAWdata %>% select(ACMI:VILA), "hellinger")
+
+rda2 = rda(planthel~ WORM_N + Year + PlantBiomass + Treatment + Condition(PlantBiomass16), data=RDAWdata)
+
+summary(rda2)
+coef(rda2)
+
+(R2 <- RsquareAdj(rda2)$r.squared)
+
+# Gloabl test of the RDA result
+anova.cca(rda2, step=1000)
+# Tests of all canonical axes
+anova.cca(rda2, by="axis", step=1000)
+# Tests of all terms
+anova.cca(rda2, by="terms", step=1000)
+# Tests of all terms
+anova.cca(rda2, by="margin", step=1000)
+
+(prop_explained = round(rda2$CCA$eig/rda2$tot.chi*100,1))
+
+jpeg(paste0("Stats_plots_from_",Sys.Date(),"/RDA_WE_",Sys.Date(), ".jpeg"), units="in", width=7, height=7, res=600)
+plot(rda2, type="n", xlab=paste0("RDA1 (", prop_explained[1],"%; ns)"), ylab=paste0("RDA2 (", prop_explained[2],"%; ns)"))
+points(rda2, display= "sites", choices=c(1,2), scaling=2, pch=ifelse(RDAWdata$Year=="17", 19, 17),col=ifelse(RDAWdata$Treatment=="Remove", "black", "grey"))
+text(rda2, display="bp", choices=c(1,2), scaling=2, col=c("blue","orange"), select=c(T,F, T,F))
+text(rda2, display= "sp", choices=c(1,2), scaling=2, cex=0.5, col="red")
+legend("topright", legend=bquote(italic(R)^2 == .(format(R2, digits = 3))), bty="n")
+legend("bottomright", legend=c("`17", "`18", "Control", "Remove"), col=c("grey30", "grey30", "grey", "black"), bty="n", pch=c(19,17, 15,15))
+dev.off()

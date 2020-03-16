@@ -36,7 +36,7 @@ plotcompare <- function(OUTPUTALL, typevar){
   rm(vec, vec2)
   
   XLAB = ifelse(typevar == "Single", "Model (One plant species)", 
-                ifelse(typevar == "Direct", "Direct effect model (One plant species)", "Model (Two plant species)"))
+                ifelse(typevar == "Direct"| typevar == "Direct2", "Direct effect model (One plant species)", "Model (Two plant species)"))
   
   NNNNN <- c(
     "H" = "Herbivore" ,
