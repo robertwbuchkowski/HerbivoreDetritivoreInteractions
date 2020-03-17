@@ -810,23 +810,6 @@ initialrun = ode(y=yint,times = seq(1,365*yts,365), func=multiplemodel, parms=pa
 
 max(initialrun[(dim(initialrun)[1]-1),-1] - initialrun[(dim(initialrun)[1]-2),-1])
 
-if(F){
-  initialrun %>% as.data.frame() %>% as_tibble() %>%
-    filter(time > 365*(yts-5)) %>%
-    gather(-time, key = StateVar, value = Biomass) %>%
-    ggplot(aes(x= time, y= Biomass)) + geom_line() + 
-    facet_wrap(.~StateVar, scale = "free") + theme_classic()
-}
-
-if(F){
-  initialrun %>% as.data.frame() %>% as_tibble() %>%
-    filter(time %in% seq(1, 365*yts, 365)) %>%
-    mutate(time = time/365) %>%
-    gather(-time, key = StateVar, value = Biomass) %>%
-    ggplot(aes(x= time, y= Biomass)) + geom_line() + 
-    facet_wrap(.~StateVar, scale = "free") + theme_classic()
-}
-
 (yint3 = initialrun[(dim(initialrun)[1]-1),-1])
 
 # P            L            M            W            N 

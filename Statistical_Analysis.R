@@ -52,25 +52,31 @@ wormdata3 = wormdata2 %>% filter(SeasonYear == "Fall17"|SeasonYear == "Fall18")
 ch4_correctworm0 <- lm(WORM_N ~ VWCavg + SoilTavg + CloudCover + Air_Temp, data= wormdata3); summary(ch4_correctworm0) # least significant CloudCover and Air_Temp
 ch4_correctworm <- lm(WORM_N ~ VWCavg + SoilTavg, data= wormdata3); summary(ch4_correctworm) # both significant
 1/(1-summary(ch4_correctworm)$r.squared)
-vif(ch4_correctworm)
+car::vif(ch4_correctworm)
+
+# Correct endogeic earthworm numbers
+ch4_correctAP0 <- lm(AP_N ~ VWCavg + SoilTavg + CloudCover + Air_Temp, data= wormdata3); summary(ch4_correctAP0) # least significant CloudCover and Air_Temp
+
+ch4_correctAP <- lm(log(AP_N+0.1) ~ SoilTavg, data= wormdata3); summary(ch4_correctAP) # least significant CloudCover and Air_Temp
 
 # Create table for supplemental material
 sjPlot::tab_model(ch4_correctworm0,ch4_correctworm, collapse.ci = T,pred.labels = c("Intercept", "Volumetric Water Content", "Soil Temperature","Cloud Cover (%)","Air Temperature"), dv.labels = c("Worm (#; all variables)", "Worm (#; selected variables)"),p.style="a")
 
 wormdata3 = wormdata3 %>% 
-  select(Plot, Season, Year, WORM_N) %>%
-  mutate(WORM_N_STD = as.vector(resid(ch4_correctworm))) %>%
-  select(-Season, -WORM_N)
+  select(Plot, Season, Year) %>%
+  mutate(WORM_N_STD = as.vector(resid(ch4_correctworm)),
+         AP_N_STD = as.vector(resid(ch4_correctAP))) %>%
+  select(-Season)
 
 pbdata = pbdata %>% 
   full_join(wormdata3) %>%
-  rename(WORM_N_old = WORM_N) %>%
-  rename(WORM_N = WORM_N_STD)
+  rename(WORM_N_old = WORM_N, AP_N_old = AP_N) %>%
+  rename(WORM_N = WORM_N_STD, AP_N = AP_N_STD)
 
 # Replace Earthworm in the RDA datafile
 
 RDAdata = RDAdata %>% rename(Earthworm_old = Earthworm) %>% 
-  left_join(pbdata %>% select(Plot, Year, WORM_N)) %>%
+  left_join(pbdata %>% select(Plot, Year, WORM_N, AP_N)) %>%
   rename(Earthworm = WORM_N) %>%
   mutate(Year = as.factor(Year))
   
@@ -86,40 +92,40 @@ write_rds(pbdata, "Data/pbdata.rds")
 
 # .. 1.1 Linear models --------------------
 
-linearmodels<- function(inputdata){
+linearmodels<- function(inputdata, inter = T){
   inputdata[,"Base16"] = inputdata$PlantBiomass16
   PBinter = lmer(PlantBiomass ~ WORM_N*HopperN + Year + Base16 + (1|Plot), data= inputdata)
   PBfinal = lmer(PlantBiomass ~ WORM_N + HopperN + Year + Base16 + (1|Plot), data= inputdata)
-  PBaov = anova(PBinter,PBfinal)
-  print(PBaov)
   
   inputdata[,"Base16"] = inputdata$SIR16
   SIRinter = lmer(SIR ~ WORM_N*HopperN + Base16 + Year + (1|Plot), data= inputdata)
   SIRfinal = lmer(SIR ~ WORM_N + HopperN + Base16 + Year + (1|Plot), data= inputdata)
-  SIRaov = anova(SIRinter,SIRfinal)
-  print(SIRaov)
   
   inputdata[,"Base16"] = inputdata$NTs16
   NTsinter = lmer(log(NTs) ~ WORM_N*HopperN + Base16 + Year + (1|Plot), data= inputdata, na.action = na.omit)
   NTsfinal = lmer(log(NTs) ~ WORM_N+ HopperN + Base16 + Year + (1|Plot), data= inputdata, na.action = na.omit)
-  NTsaov = anova(NTsinter,NTsfinal)
-  print(NTsaov)
   
   inputdata[,"Base16"] = inputdata$NTm16
   NTminter = lmer(NTm ~ WORM_N*HopperN + Base16 + Year + (1|Plot), data= inputdata)
   NTmfinal = lmer(NTm ~ WORM_N + HopperN + Base16 + Year + (1|Plot), data= inputdata)
-  NTmaov = anova(NTminter,NTmfinal)
-  print(NTmaov)
   
   # Create table to output results
-  sjPlot::tab_model(PBfinal,SIRfinal, NTsfinal, NTmfinal, collapse.ci = T, 
-                    pred.labels = c("Intercept", "Earthworm (#)", "Grasshopper (#)","Year [2018]","Baseline '16 (of dependent variable)"),
-                    dv.labels = c("Plant Biomass", "Substrate Induced Respiration","Field N mineralization (log)", "Lab N mineralization"), p.style="a")
+  if(inter){
+    sjPlot::tab_model(PBinter,SIRinter, NTsinter, NTminter, collapse.ci = T, 
+                      pred.labels = c("Intercept", "Earthworm (#)", "Grasshopper (#)","Year [2018]","Baseline '16 (of dependent variable)", "Earthworm × Grasshopper"),
+                      dv.labels = c("Plant Biomass", "Substrate Induced Respiration","Field N mineralization (log)", "Lab N mineralization"), p.style="a")
+  }else{
+    sjPlot::tab_model(PBfinal,SIRfinal, NTsfinal, NTmfinal, collapse.ci = T, 
+                      pred.labels = c("Intercept", "Earthworm (#)", "Grasshopper (#)","Year [2018]","Baseline '16 (of dependent variable)"),
+                      dv.labels = c("Plant Biomass", "Substrate Induced Respiration","Field N mineralization (log)", "Lab N mineralization"), p.style="a")
+  }
+
 }
 
 # ... 1.1.1 Original model analysis ----
 linearmodels(pbdata)
 
+linearmodels(pbdata, inter= F)
 # ... 1.1.2 Model analysis with raw earthworm number ----
 linearmodels(pbdata %>% mutate(WORM_N = WORM_N_old))
 
@@ -138,38 +144,40 @@ linearmodels(pbHQ)
 
 linearmodels(pbHQ %>% mutate(WORM_N = WORM_N_old))
 
-# ... 1.1.4 Model analysis of two years separately ----
+# ... 1.1.4 Model analysis with endogeic earthworms ----
+linearmodels(pbdata %>% mutate(WORM_N = AP_N))
+# ... 1.1.5 Model analysis with uncorrected endogeic earthworms ----
+linearmodels(pbdata %>% mutate(WORM_N = AP_N_old))
+# ... 1.1.6 Model analysis of two years separately ----
 
-YearSeparateModels<- function(inputdata){
+YearSeparateModels<- function(inputdata, inter = T){
   
   inputdata[,"Base16"] = inputdata$PlantBiomass16
   PBinter = lm(PlantBiomass ~ WORM_N*HopperN + Base16 , data= inputdata)
   PBfinal = lm(PlantBiomass ~ WORM_N + HopperN + Base16 , data= inputdata)
-  PBaov = anova(PBinter,PBfinal)
-  print(PBaov)
   
   inputdata[,"Base16"] = inputdata$SIR16
   SIRinter = lm(SIR ~ WORM_N*HopperN + Base16 , data= inputdata)
   SIRfinal = lm(SIR ~ WORM_N + HopperN + Base16 , data= inputdata)
-  SIRaov = anova(SIRinter,SIRfinal)
-  print(SIRaov)
   
   inputdata[,"Base16"] = inputdata$NTs16
   NTsinter = lm(log(NTs) ~ WORM_N*HopperN + Base16 , data= inputdata, na.action = na.omit)
   NTsfinal = lm(log(NTs) ~ WORM_N+ HopperN + Base16 , data= inputdata, na.action = na.omit)
-  NTsaov = anova(NTsinter,NTsfinal)
-  print(NTsaov)
   
   inputdata[,"Base16"] = inputdata$NTm16
   NTminter = lm(NTm ~ WORM_N*HopperN + Base16 , data= inputdata)
   NTmfinal = lm(NTm ~ WORM_N + HopperN + Base16 , data= inputdata)
-  NTmaov = anova(NTminter,NTmfinal)
-  print(NTmaov)
   
   # Create table to output results
-  sjPlot::tab_model(PBfinal,SIRfinal, NTsfinal, NTmfinal, collapse.ci = T, 
-                    pred.labels = c("Intercept", "Earthworm (#)", "Grasshopper (#)", "Baseline '16 (of dependent variable)"),
-                    dv.labels = c("Plant Biomass", "Substrate Induced Respiration","Field N mineralization (log)", "Lab N mineralization"), p.style="a")
+  if(inter){
+    sjPlot::tab_model(PBinter,SIRinter, NTsinter, NTminter, collapse.ci = T, 
+                      pred.labels = c("Intercept", "Earthworm (#)", "Grasshopper (#)", "Baseline '16 (of dependent variable)","Earthworm × Grasshopper"),
+                      dv.labels = c("Plant Biomass", "Substrate Induced Respiration","Field N mineralization (log)", "Lab N mineralization"), p.style="a")
+  }else{
+    sjPlot::tab_model(PBfinal,SIRfinal, NTsfinal, NTmfinal, collapse.ci = T, 
+                      pred.labels = c("Intercept", "Earthworm (#)", "Grasshopper (#)", "Baseline '16 (of dependent variable)","Earthworm × Grasshopper"),
+                      dv.labels = c("Plant Biomass", "Substrate Induced Respiration","Field N mineralization (log)", "Lab N mineralization"), p.style="a")
+  }
 }
 
 # No interactions in 2017
@@ -178,7 +186,7 @@ YearSeparateModels(pbdata %>% filter(Year == "17"))
 # No interactions in 2018
 YearSeparateModels(pbdata %>% filter(Year == "18"))
 
-# ... 1.1.5 Plot the results ----
+# ... 1.1.7 Plot the results ----
 
 pbdata = pbdata %>% mutate(Year = as.factor(Year))
 
@@ -266,7 +274,7 @@ pbdata = pbdata %>% select(-Base16)
 
 rm(PBfinal,SIRfinal, NTsfinal, NTmfinal)
 
-#.... 1.1.6 Effect of biomass control ----
+#.... 1.1.8 Effect of biomass control ----
 
 bmdata = pbdata %>% filter(HopperAdd!="Add" & Addition!="Add")
 
