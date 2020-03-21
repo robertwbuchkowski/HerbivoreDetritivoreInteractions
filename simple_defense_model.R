@@ -1,6 +1,7 @@
 require(FME)
-require(tidyverse)
 require(lubridate)
+require(tidyverse)
+
 
 # How many years do you want to simulate the experiments?
 simyear = 100
@@ -745,6 +746,7 @@ multiplemodel <-function(t, y,pars){
   )
 }
 
+# . 3.1 Multiple Model #1 ----
 
 params<- c(Vlm_mod = 8e-6,
            Vsm_mod = 4e-06,
@@ -794,7 +796,6 @@ params<- c(Vlm_mod = 8e-6,
            Vint = 5.47,
            Kint = 3.19)
 
-
 yint= c(P1=95.238095/2, # WE
         P2=95.238095/2, # WE
         L=25.526097, # WE plots with C:N ratio from files
@@ -839,7 +840,7 @@ if(F){
     facet_wrap(.~StateVar, scale = "free") + theme_classic()
 }
 
-# .... 3.0.0.1 Multiple model sampling and treatment data frames --------------------------------------
+# .... 3.1.0.1 Multiple model sampling and treatment data frames --------------------------------------
 
 hopsamp = seq(0,3,1)*365 + 266
 soilsamp = c(seq(1,3,1)*365 + 170, seq(0,3,1)*365 + 300)
@@ -892,7 +893,7 @@ if(F){
     facet_wrap(.~StateVar, scale = "free") + theme_classic()
 }
 
-# .. 3.0.1 Simulations ----
+# .. 3.1.1 Simulations ----
 
 output2_WE_Return = ode(y=yint3,times = 1:tmax2, func=multiplemodel, parms=params)
 
@@ -984,6 +985,111 @@ if(F){
 
 rm(output)
 
+# . 3.2 Multiple Model #2 ----
+
+params<- c(Vlm_mod = 8e-6,
+           Vsm_mod = 4e-06,
+           Klm_mod = 0.143,
+           Ksm_mod = 0.143,
+           Vlw = 2.4e-06,#2.4e-06, #2.4e-05 before correction to Type I
+           Vsw = 4.1e-05,#4.1e-05,#0.00462 before correction to Type I
+           
+           Vpf1 = 0.001/0.00018, #From JRS project 0.03
+           Kpf1 = 0.08, #From JRS project 0.006
+           Vhp1 = 0.01, #From JRS project 0.0025 - 0.0029
+           tp1 = 5e-06, #0.00008,
+           a12 = 3e-06,
+           
+           Vpf2 = 0.001/0.00018, #From JRS project 0.03
+           Kpf2 = 0.5*0.08, #From JRS project 0.006
+           Vhp2 = 1.8*0.01, #From JRS project 0.0025 - 0.0029
+           tp2 = 5e-06, #0.00008,
+           a21 = 3e-06,
+           
+           SUEh = 0.7,
+           SUE = 0.50,
+           SUEws = 0.01,
+           SUEwl = 0.02,
+           SUEwm = 0.3,
+           q = 0.1,
+           IN= 0.02,
+           l = 0.0001,
+           tm = 0.01,
+           tw = 0.00001,
+           th = 20, # based on surivival from Schmitz lab experiments
+           fi=0.6, #0.6,
+           fo=0.001, #0.003,
+           Ea = 0.25,
+           Kappa = 8.62e-05,
+           Tref_W = 288.15,
+           Tref_P = 297.65,
+           B = 2493,
+           D = 26712,
+           Vslope = 0.063,
+           Kslope = 0.007,
+           Vint = 5.47,
+           Kint = 3.19)
+
+yint= c(P1=95.238095/2, # WE
+        P2=95.238095/2, # WE
+        L=25.526097, # WE plots with C:N ratio from files
+        M=7.160995, # WE plots
+        W=9.639477, # WE plots
+        N=0.100000, # WE plots
+        S=134.845515, # my historical data
+        H=0.009) # Schmitz et al. 1997 8-10/m2 * 0.0986 * 0.11
+
+
+yts = 1000
+
+initialrun = ode(y=yint,times = seq(1,365*yts,365), func=multiplemodel, parms=params)
+
+max(initialrun[(dim(initialrun)[1]-1),-1] - initialrun[(dim(initialrun)[1]-2),-1])
+
+(yint3 = initialrun[(dim(initialrun)[1]-1),-1])
+
+# P            L            M            W            N 
+# 34.609554901  8.570928208  5.429586815  9.495648285  0.160438844 
+# S            H 
+# 81.147450074  0.006371372 
+# .. 3.2.1 Simulations ----
+
+output2_WE_Return = ode(y=yint3,times = 1:tmax2, func=multiplemodel, parms=params)
+
+output2_WE_Remove = ode(y=yint3,times = 1:tmax2, func=multiplemodel, parms=params,
+                        events = list(data=eshock_WE))
+
+output2_HW = ode(y=yint3,times = 1:tmax2, func=multiplemodel, parms=params,
+                 events = list(data=eadd))
+
+output2_H = ode(y=yint3,times = 1:tmax2, func=multiplemodel, parms=params,
+                events = list(data=eshock))
+
+yint3["H"] = 0
+
+output2_W = ode(y=yint3,times = 1:tmax2, func=multiplemodel, parms=params,
+                events = list(data=eadd))
+
+output2_0 = ode(y=yint3,times = 1:tmax2, func=multiplemodel, parms=params,
+                events = list(data=eshock))
+
+output = as.data.frame(rbind(output2_WE_Return,output2_WE_Remove,output2_HW, output2_H, output2_W, output2_0))
+
+rm(output2_WE_Return,output2_WE_Remove,output2_HW, output2_H, output2_W, output2_0)
+
+output["Treatment"] = as.factor(rep(c("Rt","RmW","HW","H","W","N"), each=tmax2))
+
+# Joint plant biomass
+output[,"P"] = output$P1 + output$P2
+
+# Convert plant biomass to aboveground rather than belowground
+output$P = output$P*0.1 # 10% of plant biomass is aboveground
+
+# Save the single model output
+multipleoutput2 = output
+
+rm(output)
+
 # 4.0 Compare the dynamics of single and multiple species outputs -----
 
 datatomodel2a = datatomodel2 %>% 
@@ -995,8 +1101,6 @@ datatomodel2a = datatomodel2 %>%
     data.frame(Treatment = c("Rt",  "RmW", "HW",  "H",   "W",   "N"),
                Treatment3 = c("eRt",  "fRmW", "dHW",  "bH",   "cW",   "aN"))
   )
-
-speciescomp = multipleoutput[,c("time","P1", "P2", "Treatment")]
 
 singleoutput["Treatment2"] = rep(c("T5","T4","T3","T2","T1","T0"), each=tmax2)
 singleoutput["Type"] = "Single"
@@ -1013,16 +1117,25 @@ directoutput2["P2"] = NA
 multipleoutput["Treatment2"] = rep(c("T5","T4","T3","T2","T1","T0"), each=tmax2)
 multipleoutput["Type"] = "Multiple"
 
+multipleoutput2["Treatment2"] = rep(c("T5","T4","T3","T2","T1","T0"), each=tmax2)
+multipleoutput2["Type"] = "Multiple2"
+
 # Write data files
 write_rds(singleoutput, "Data/singleoutput.rds")
-write_rds(singleoutput, "Data/directoutput.rds")
-write_rds(singleoutput, "Data/directoutput2.rds")
-write_rds(singleoutput, "Data/multipleoutput.rds")
+write_rds(directoutput, "Data/directoutput.rds")
+write_rds(directoutput2, "Data/directoutput2.rds")
+write_rds(multipleoutput, "Data/multipleoutput.rds")
+write_rds(multipleoutput2, "Data/multipleoutput2.rds")
 
-outputall = rbind(singleoutput, directoutput,directoutput2, multipleoutput) %>% left_join(
+outputall = rbind(singleoutput, directoutput,directoutput2, multipleoutput,multipleoutput2) %>% left_join(
   data.frame(Treatment = c("Rt",  "RmW", "HW",  "H",   "W",   "N"),
              Treatment3 = c("eRt",  "fRmW", "dHW",  "bH",   "cW",   "aN"))
 )
+
+speciescomp = outputall %>% filter(Type %in% c("Multiple", "Multiple2")) %>%
+  select(time, P1, P2, Treatment, Type)
+
+# . 4.1 Plot the outputs into a single file for viewing ----
 
 StateVar_names <- c(
   "H" = "Herbivore" ,
@@ -1063,6 +1176,7 @@ plotcompare(outputall, "Single")
 plotcompare(outputall, "Direct")
 plotcompare(outputall, "Direct2")
 plotcompare(outputall, "Multiple")
+plotcompare(outputall, "Multiple2")
 
 toplot = as_tibble(outputall) %>% 
   select(-Treatment,-Treatment3) %>%
@@ -1079,10 +1193,10 @@ toplot = as_tibble(outputall) %>%
 toplot %>% filter(time %in% seq(1, 105*365, by = 365/10)) %>% 
   mutate(time = time/365) %>% 
   filter(!(StateVar %in% c("H", "W","P1", "P2"))) %>%
-  ggplot() + geom_line(aes(x=time, y=Biomass, color = Type), alpha=0.5) + theme_classic() + facet_grid(StateVar~Treatment, scales="free_y",labeller=labeller(StateVar = StateVar_names, Treatment = effect_names)) + ylab(expression(Biomass~(g[N]~m^-2))) + xlab("Time (years)") + geom_hline(yintercept = 0, lty=2) + scale_color_manual(values = c("#E69F00", "#56B4E9", "#009E73", "#F0E442"))
+  ggplot() + geom_line(aes(x=time, y=Biomass, color = Type), alpha=0.5) + theme_classic() + facet_grid(StateVar~Treatment, scales="free_y",labeller=labeller(StateVar = StateVar_names, Treatment = effect_names)) + ylab(expression(Biomass~(g[N]~m^-2))) + xlab("Time (years)") + geom_hline(yintercept = 0, lty=2) + scale_color_manual(values = c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))
 
 toplot %>% filter(time %in% seq(1, 105*365, by = 365/10)) %>% mutate(time = time/365) %>% filter(!(StateVar %in% c("P1", "P2","H", "W"))) %>% filter(Treatment == "dInteraction") %>%
-  ggplot() + geom_line(aes(x=time, y=Biomass, color = Type), alpha=0.5) + theme_classic() + facet_wrap(.~StateVar, scales="free",labeller=labeller(StateVar = StateVar_names)) + ylab("Interaction effect (proportion of control)") + xlab("Time (years)") + geom_hline(yintercept = 0, lty=2) + scale_color_manual(values = c("#E69F00", "#56B4E9", "#009E73", "#F0E442"))
+  ggplot() + geom_line(aes(x=time, y=Biomass, color = Type), alpha=0.5) + theme_classic() + facet_wrap(.~StateVar, scales="free",labeller=labeller(StateVar = StateVar_names)) + ylab("Interaction effect (proportion of control)") + xlab("Time (years)") + geom_hline(yintercept = 0, lty=2) + scale_color_manual(values = c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))
 
 # Treatments don't change plant species composition in the multiple model!
 speciescomp %>% as_tibble() %>% mutate(Prop = P1/(P1+P2))  %>% 
@@ -1090,11 +1204,11 @@ speciescomp %>% as_tibble() %>% mutate(Prop = P1/(P1+P2))  %>%
   mutate(Year = time/365) %>%
   filter(Treatment %in% c("N", "H", "W", "HW")) %>%
   mutate(LW = ifelse(Treatment %in% c("N", "H"), 2,1)) %>%
-  ggplot(aes(x=Year, y = Prop, color = Treatment, size = LW)) + geom_line() + theme_classic() + scale_color_manual(values=c("purple", "brown", "green", "blue"),labels=c("None (Expt)", "Worm (Expt)", "Hopper (Expt)", "Both (Expt)")) + ylab("Proportion of fast growing plant") + scale_size(guide = F, range = c(1,3)) + xlab("Time (years)")
+  ggplot(aes(x=Year, y = Prop, color = Treatment, size = LW, linetype = Type)) + geom_line() + theme_classic() + scale_color_manual(values=c("purple", "brown", "green", "blue"),labels=c("None (Expt)", "Worm (Expt)", "Hopper (Expt)", "Both (Expt)")) + ylab("Proportion of fast growing plant") + scale_size(guide = F, range = c(1,3)) + xlab("Time (years)")
 
 dev.off()
 
 pdf(paste0("simplemodel_",Sys.Date(),"/talk.pdf"), width=7, height=5)
 toplot %>% filter(time %in% seq(1, 105*365, by = 365/10)) %>% mutate(time = time/365) %>% filter(!(StateVar %in% c("P1", "P2","H", "W"))) %>% filter(Treatment == "dInteraction") %>%
-  ggplot() + geom_line(aes(x=time, y=Biomass, color = Type), alpha=0.5) + theme_classic() + facet_wrap(.~StateVar, scales="free",labeller=labeller(StateVar = StateVar_names)) + ylab("Interaction effect (proportion of control)") + xlab("Time (years)") + geom_hline(yintercept = 0, lty=2) + scale_color_manual(values = c("#E69F00", "#56B4E9", "#009E73", "#F0E442"))
+  ggplot() + geom_line(aes(x=time, y=Biomass, color = Type), alpha=0.5) + theme_classic() + facet_wrap(.~StateVar, scales="free",labeller=labeller(StateVar = StateVar_names)) + ylab("Interaction effect (proportion of control)") + xlab("Time (years)") + geom_hline(yintercept = 0, lty=2) + scale_color_manual(values = c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))
 dev.off()

@@ -390,15 +390,21 @@ pcdata = pbdata %>%
 rm(Totals)
 
 pbdata_SEM = pcdata %>% 
-  select(c("WORM_N", "HopperN", "SIR", "NTs", "NTm", 
+  select(c("WORM_N","AP_N", "HopperN", "SIR", "NTs", "NTm", 
            "PlantBiomass16", "SoilTavg","VWCavg", "NTm16", 
            "NTs16", "SIR16", "AP_N", "LUM_N", "SOAL", "TRPR", 
            "TRPR16", "SOALbase", "PlantBiomass", "Plot", "Year")) %>%
-  mutate_at(c("WORM_N", "HopperN", "SIR", "NTs", "NTm", 
+  mutate_at(c("WORM_N","AP_N", "HopperN", "SIR", "NTs", "NTm", 
               "PlantBiomass16", "SoilTavg","VWCavg", "NTm16", 
               "NTs16", "SIR16", "AP_N", "LUM_N", "SOAL", "TRPR", 
-              "TRPR16", "SOALbase"),funs(scale)) %>%
+              "TRPR16", "SOALbase"),list(scale = scale)) %>%
   mutate(Year = as.character(Year))
+
+pbdata_SEM = pbdata_SEM %>% select(PlantBiomass, Plot, Year, WORM_N_scale:SOALbase_scale) %>%
+  gather(-PlantBiomass, -Plot, -Year,key = Variable, value = value) %>%
+  separate(Variable, into=c("Variable", "sclae"), sep="_s") %>%
+  select(-sclae) %>%
+  spread(key = Variable, value = value)
 
 SEM1 <- psem(lme(PlantBiomass ~ WORM_N*HopperN + SIR + NTs + NTm + PlantBiomass16 + SOAL + TRPR + Year,random=~1|Plot, data=pbdata_SEM),
              lme(SOAL ~WORM_N*HopperN + SOALbase + Year,random=~1|Plot, data=pbdata_SEM),
@@ -451,6 +457,24 @@ SEM3 <- psem(lme(PlantBiomass ~ WORM_N + HopperN + SIR + NTs + NTm + PlantBiomas
 )
 
 (SEM3a = summary(SEM3, .progressBar = T))
+
+# Try the final model with Endogeic earthworms
+SEM4 <- psem(lme(PlantBiomass ~ AP_N + HopperN + SIR + NTs + NTm + PlantBiomass16 + SOAL + TRPR + Year,random=~1|Plot, data=pbdata_SEM),
+             lme(SOAL ~AP_N + HopperN + SOALbase + Year,random=~1|Plot, data=pbdata_SEM),
+             lme(TRPR ~AP_N + HopperN + TRPR16 + Year,random=~1|Plot, data=pbdata_SEM),
+             lme(NTs ~ AP_N + HopperN + NTs16 + Year,random=~1|Plot, data=pbdata_SEM),
+             lme(NTm ~ AP_N + HopperN + NTm16 + Year,random=~1|Plot, data=pbdata_SEM),
+             lme(SIR ~ AP_N + HopperN + SIR16 + Year,random=~1|Plot, data=pbdata_SEM),
+             SOAL %~~% PlantBiomass16,
+             PlantBiomass %~~% TRPR16,
+             PlantBiomass %~~% SIR16,
+             SOAL %~~% TRPR16,
+             TRPR%~~%SIR,
+             TRPR%~~%NTs,
+             TRPR%~~%SOAL
+)
+
+(SEM4a = summary(SEM4, .progressBar = T))
 
 # Generate AIC values for each SEM model
 data.frame(Model = c("All H x W interations", "Only plant interaction", "No interaction"),
