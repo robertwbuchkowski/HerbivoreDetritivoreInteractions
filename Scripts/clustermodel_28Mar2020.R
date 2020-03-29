@@ -3,7 +3,7 @@
 require(deSolve)
 
 # How many replicates do you want to run in this code file?
-NTOT = 50
+NTOT = 100
 
 # How many years do you want to simulate the experiments?
 simyear = 100
