@@ -9,3 +9,11 @@ Issue with the current model is that two plant species are not coexisting. Need 
 Got it working with a simple plant LV competition model. Now it works OK, but interaction still pretty weak over 20 years.
 
 In order to account for two plants being about to take more resources, we added plant competition to (1) ensure coexistence was possible and (2) reduce the joint plant biomass down to comparable levels.
+
+# Notes March 30 2020
+
+Having trouble fitting in the parameter names...issues b.c 5 runs are not lining up.
+
+# Loads
+
+scp -r -p rwb45@grace.hpc.yale.edu:/home/fas/schmitz/rwb45/Model_parameter_reps /Users/robertbuchkowski/Documents/GitHub_Repos/HerbivoreDetritivoreInteractions/
