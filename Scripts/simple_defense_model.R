@@ -1127,6 +1127,13 @@ write_rds(directoutput2, "Data/directoutput2.rds")
 write_rds(multipleoutput, "Data/multipleoutput.rds")
 write_rds(multipleoutput2, "Data/multipleoutput2.rds")
 
+# Read data files
+singleoutput = read_rds("Data/singleoutput.rds")
+directoutput = read_rds("Data/directoutput.rds")
+directoutput2 = read_rds("Data/directoutput2.rds")
+multipleoutput = read_rds("Data/multipleoutput.rds")
+multipleoutput2 = read_rds("Data/multipleoutput2.rds")
+
 outputall = rbind(singleoutput, directoutput,directoutput2, multipleoutput,multipleoutput2) %>% left_join(
   data.frame(Treatment = c("Rt",  "RmW", "HW",  "H",   "W",   "N"),
              Treatment3 = c("eRt",  "fRmW", "dHW",  "bH",   "cW",   "aN"))
@@ -1170,7 +1177,7 @@ pdf(paste0("simplemodel_",Sys.Date(),"/Grahipcs_compare_",
 
 outputall %>% as_tibble() %>% filter(time < tmax2_expt) %>% select(-Treatment2,-Treatment, -P1, -P2) %>% gather(-Type, -time, -Treatment3, key = StateVar, value = Biomass) %>% ggplot() + geom_line(aes(x=time, y=Biomass, linetype = Type), alpha=0.5) + theme_classic() + facet_grid(StateVar~Treatment3, scales="free_y",labeller=labeller(StateVar = StateVar_names, Treatment3 = Treatment3_names)) + scale_color_manual(values=c("purple", "brown", "green", "blue", "pink", "red"),labels=c("None (Expt)", "Worm (Expt)", "Hopper (Expt)", "Both (Expt)", "Removal", "Return")) + ylab(expression(Biomass~(g[N]~m^-2))) + xlab("Time (Days since start)") + ylab(expression(Biomass~(g[N]~m^-2))) + xlab("Time (Days since start)")+ geom_errorbar(data = datatomodel2a, aes(x=time, ymin = lower, ymax = upper, color=Treatment3)) + geom_point(data = datatomodel2a, aes(x=time, y= Biomass, color=Treatment3), size=2)
 
-source("plotcompare.R")
+source("Scripts/plotcompare.R")
 
 plotcompare(outputall, "Single")
 plotcompare(outputall, "Direct")
@@ -1211,4 +1218,8 @@ dev.off()
 pdf(paste0("simplemodel_",Sys.Date(),"/talk.pdf"), width=7, height=5)
 toplot %>% filter(time %in% seq(1, 105*365, by = 365/10)) %>% mutate(time = time/365) %>% filter(!(StateVar %in% c("P1", "P2","H", "W"))) %>% filter(Treatment == "dInteraction") %>%
   ggplot() + geom_line(aes(x=time, y=Biomass, color = Type), alpha=0.5) + theme_classic() + facet_wrap(.~StateVar, scales="free",labeller=labeller(StateVar = StateVar_names)) + ylab("Interaction effect (proportion of control)") + xlab("Time (years)") + geom_hline(yintercept = 0, lty=2) + scale_color_manual(values = c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))
+dev.off()
+
+pdf(paste0("simplemodel_",Sys.Date(),"/model_expt.pdf"), width=7, height=7)
+plotcompare(outputall, "Single")
 dev.off()

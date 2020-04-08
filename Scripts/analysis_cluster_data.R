@@ -85,17 +85,12 @@ params<- c(Vlm_mod = 8e-6,
            Tref_W = 288.15,
            Tref_P = 297.65)
 
-nparams = names(params)
-
-# get parameter values
-par1 <- data2 %>% select(PARS, Run) %>% 
-  mutate(NPAR = rep(c(nparams, rep("REMOVE", 127)), length(unique(data2$Run)))) %>%
-  filter(NPAR != "REMOVE")
-
 # get stable state variable values
 
-stable1 <- data2 %>% select(YSTABLE, Run) %>% filter(YSTABLE!=-2) %>% 
-  mutate(NVAR = rep(colnames(data2)[2:8], length(unique(data2$Run))))
+if(F){
+  stable1 <- data2 %>% select(YSTABLE, Run) %>% filter(YSTABLE!=-2) %>% 
+    mutate(NVAR = rep(colnames(data2)[2:8], length(unique(data2$Run))))
+}
 
 # get model data to compare with empirical data
 data3 <- data2 %>% select(-PARS, -YSTABLE, -Run2) %>% filter(time!=-1) %>% rename(TreatmentN = Treatment) %>%
@@ -202,10 +197,12 @@ variable_names_Expt <- c(
   "2" = "Cage experiment"
 )
 
+rm(data4)
+
 # Plot results of selection -----------------------------------------------
 
 #create directory for results
-dir.create(paste0("plots_from_",Sys.Date()))
+dir.create(paste0("modelresults_",Sys.Date()))
 
 parplot1 = data5 %>% 
   group_by(Treatment, time, StateVar) %>%
@@ -230,9 +227,7 @@ parplot2 = parplot1 %>% select(StateVar, upModel, upBio) %>%
   separate(Type, into=c("Type", "Level"), sep="_") %>%
   spread(key=Type, value=V1)
 
-png(paste0("plots_from_",Sys.Date(),"/","model_expt_", Sys.Date(),".png"), width=8,
-    height=5, units="in", res=300)
-parplot1 %>%
+modelexptplot = parplot1 %>%
   ggplot(aes(x=Model, y=mBio)) +
   geom_blank(data=parplot2) + 
   geom_abline(intercept=0, slope=1) + 
@@ -258,37 +253,44 @@ parplot1 %>%
                                 "Worm removal", 
                                 "Herbivore control",
                                 "Herbivore removal"))
+
+png(paste0("modelresults_",Sys.Date(),"/","model_expt_", Sys.Date(),".png"), width=8,
+    height=5, units="in", res=300)
+modelexptplot
 dev.off()
+
+rm(parplot1, parplot2)
 
 # Look at state variable distribution for selected runs
 
-png(paste0("plots_from_",Sys.Date(),"/","state_var_dist_", Sys.Date(),".png"), width=8,
-    height=5, units="in", res=300)
-# data5 %>%
-#   ggplot(aes(x=Model, fill=as.factor(time))) + 
-#   geom_histogram() + facet_wrap(.~StateVar, scales="free") + theme_classic()
-
-data5 %>% filter(time ==1395) %>%
+statevardist = data5 %>% filter(time ==1395) %>%
   ggplot(aes(x=Model, fill = Treatment)) + 
-  geom_histogram() + facet_wrap(.~StateVar, scales="free") + theme_classic() +
+  geom_histogram() + facet_wrap(.~StateVar, scales="free",labeller=labeller(StateVar = variable_names)) + theme_classic() +
   scale_fill_discrete(breaks=c("N", "H", "W", "HW",
-                                "Rt", "RmW", "RtH", "RmH"),
-                       labels=c("None (Expt)", "Herbivore (Expt)",
-                                "Earthworm (Expt)",
-                                "Both (Expt)", 
-                                "Worm control",
-                                "Worm removal", 
-                                "Herbivore control",
-                                "Herbivore removal"))
+                               "Rt", "RmW", "RtH", "RmH"),
+                      labels=c("None (Expt)", "Herbivore (Expt)",
+                               "Earthworm (Expt)",
+                               "Both (Expt)", 
+                               "Worm control",
+                               "Worm removal", 
+                               "Herbivore control",
+                               "Herbivore removal"))
+
+png(paste0("modelresults_",Sys.Date(),"/","state_var_dist_", Sys.Date(),".png"), width=8,
+    height=5, units="in", res=300)
+statevardist
 dev.off()
 
+rm(data5)
 
 # Look at parameter matches
 
-par2 = par1 %>% left_join(errord) %>% 
+parVT = data2 %>% select(PARS, Run) %>% 
+  mutate(NPAR = rep(c(names(params), rep("REMOVE", 127)), 
+                    length(unique(data2$Run)))) %>%
+  filter(NPAR != "REMOVE") %>% left_join(errord) %>% 
   filter(!NPAR %in% c("Tref_W", "Tref_P") & !is.na(fit))
 
-parVT = par2 %>% filter(Manip=="Yes") %>% filter(!is.na(fit))
 pvec = unique(parVT$NPAR)
 sigvec = rep(-1, length(pvec))
 for(i in 1:length(pvec)){
@@ -303,7 +305,7 @@ rm(vec1, vec2)
 sigframe = data.frame(NPAR = pvec, 
                       pval = ifelse(sigvec < 0.05, "*", ""))
 
-par_plot = par2 %>% filter(Manip=="Yes") %>% 
+par_plot = parVT %>% 
   left_join(data.frame(NPAR = names(params),litvalue = unname(params))) %>% # add literature values
   mutate(StdValue = PARS/litvalue) %>% # standardize estimates for easy display
   select(NPAR, Best, StdValue) %>% group_by(NPAR, Best) %>%
@@ -311,43 +313,83 @@ par_plot = par2 %>% filter(Manip=="Yes") %>%
             upper = quantile(StdValue, 0.945),
             median = quantile(StdValue, 0.5))
 
-# parameters = c("A[P]^0", "epsilon[H]", "epsilon[W]",
-#                "alpha[A]","alpha[R]", 
-#                "f[i]", "f[o]", "f[MS]", "f[WS]", "f[US]", 
-#                "I[N]", "K[LM]^0",
-#                "K[NP]", "K[SM]^0", "q", "sigma[US]", 
-#                "a[M]", "a[H]", "a[WL]", "a[WM]", "a[WS]",
-#                "tau[H]", "tau[M]", "tau[W]", "V[HP]",
-#                "V[LM]^0", "V[LW]", "V[NP]^0", "V[SM]^0", "V[SW]")
+parameters = c("B", "D", "E[a]",
+               "f[i]", "f[o]", 
+               "I[N]", "kappa",
+               "K[int]", "K[LM]^0", 
+               "K[NP]","K[slope]", "K[SM]^0",
+               "l", "q",
+               "a[M]", "a[H]", "a[WL]", "a[WM]", "a[WS]",
+               "tau[H]", "tau[M]", "tau[P]","tau[W]", 
+               "V[HP]", "V[int]",
+               "V[LM]^0", "V[LW]", "V[NP]",
+               "V[slope]","V[SM]^0", "V[SW]")
 
-png(paste0("plots_from_",Sys.Date(),"/","parameter_range_",Sys.Date(),".png"), width=12, height=4,
-    units="in", res=300)
-ggplot(par_plot, aes(x=NPAR, y=median), size=2) + 
+parameterrange = ggplot(par_plot, aes(x=NPAR, y=median), size=2) + 
   geom_pointrange(aes(ymin=lower, ymax=upper, color=Best, shape=Best, linetype=Best)) + theme_classic() +
   scale_color_manual(values=c("grey", "black")) +
   scale_shape_manual(values=c(19, 1)) + 
   geom_text(data = sigframe, aes(x=NPAR, y = 2, label=pval),size=10) +
-  ylab("Scaled value") + xlab("Parameter") #+
-  # scale_x_discrete(labels = parse(text = parameters))
+  ylab("Scaled value") + xlab("Parameter") +
+  scale_x_discrete(labels = parse(text = parameters))
+
+png(paste0("modelresults_",Sys.Date(),"/","parameter_range_",Sys.Date(),".png"), width=12, height=4,
+    units="in", res=300)
+parameterrange
 dev.off()
 
-rm(par_plot)
+rm(par_plot, parVT)
 
 # Calculate distribution of feedback size ----
 
-out1 = errord %>% filter(Best == "Yes") %>%
-  select(Run) %>%
-  left_join(data3) %>%
+data3 = data2 %>% select(-PARS, -YSTABLE, -Run2) %>% filter(time!=-1) %>% rename(TreatmentN = Treatment) %>%
+  left_join(
+    data.frame(TreatmentN = seq(0,7,1),
+               Treatment = c("N", "W", "H", "HW", "RmW", "Rt", "RmH",
+                             "RtH"))
+  ) %>% select(-TreatmentN) %>%
   filter(Treatment %in% c("N", "W", "H", "HW")) %>% 
-  select(-Expt) %>%
-  gather(-time, -Treatment, -Run, key = StateVar, value = Biomass) %>%
-  spread(key = Treatment, value = Biomass) %>% mutate(IE = (HW - H - W + N)/N) %>%
-  mutate(WE = (W - N)/N, HE = (H - N)/N) %>% select(time, Run, StateVar, IE, WE, HE) %>% filter(!(StateVar %in% c("W", "H"))) %>% mutate(IE = round(IE, digits = 8), WE = round(WE, digits = 8), HE = round(HE, digits = 8))
+  select(-Expt)
 
+rm(data2)
 
-png("plots_from_2020-03-31/interactioneffect.png", width = 8, height = 5, units = "in", res = 600)
-out1 %>% ggplot(aes(x = WE*100, y = IE*100, color = time)) + geom_hline(yintercept = 0, lty = 2) + geom_vline(xintercept = 0, lty = 2) + geom_point(shape = 1) + theme_classic() + facet_wrap(.~StateVar, scale = "free",labeller=labeller(StateVar = variable_names)) + ylab("Interaction effect (%)") + xlab("Earthworm effect (%)") + scale_color_gradient(name = "Days", low = "blue", high = "orange")
+runID = data3 %>% select(-time, -Treatment) %>% gather(-Run, key = StateVar, value = Biomass) %>%
+  mutate(Biomass = ifelse(Biomass < 0, 0,1)) %>%
+  group_by(Run) %>%
+  summarize(Total = sum(Biomass)) %>% filter(Total == 560) %>% select(Run)
+
+out1 = runID %>%
+  left_join(
+    data3
+  ) %>%
+  left_join(
+    errord %>% select(Run, Best)
+  ) %>%
+  gather(-time, -Treatment, -Run, - Best, key = StateVar, value = Biomass) %>%
+  spread(key = Treatment, value = Biomass) %>% 
+  filter(N > 1e-04) %>%
+  mutate(IE = (HW - H - W + N)/N) %>%
+  mutate(WE = (W - N)/N, HE = (H - N)/N) %>% 
+  select(time, Run, StateVar, Best, IE, WE, HE) %>% 
+  filter(!(StateVar %in% c("W", "H"))) %>% 
+  mutate(IE = round(IE, digits = 8), WE = round(WE, digits = 8), HE = round(HE, digits = 8))
+
+rm(data3)
+
+effectplot2 = out1 %>% gather(- Best, -time, -Run, -StateVar, key = Effect, value = value) %>%
+  mutate(value = 100*abs(value) + 1e-6) %>%
+  ggplot(aes(x = value, fill = Effect, color = Best)) + geom_histogram() + theme_classic() + facet_wrap(.~StateVar, scale = "free",labeller=labeller(StateVar = variable_names)) + scale_x_log10() + scale_fill_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Herbivore", "Earthworm", "Interaction"), name = "Effect (%)") + scale_color_manual(values = c("black", "white"), name = "Best empirical fit")
+
+effectplot1 = out1 %>% filter(Best == "Yes") %>% gather(-time, -Run, -StateVar, key = Effect, value = value) %>% filter(value > 1e-4) %>% filter(value < 1e4) %>%
+  mutate(value = 100*abs(value) + 1e-6) %>%
+  ggplot(aes(x = value, fill = Effect)) + geom_histogram() + theme_classic() + facet_wrap(.~StateVar, scale = "free",labeller=labeller(StateVar = variable_names)) + scale_x_log10() + scale_fill_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Herbivore", "Earthworm", "Interaction"), name = "Effect (%)")
+
+out1 %>% ggplot(aes(x = WE*100, y = IE*100, color = time, size = abs(HE))) + geom_hline(yintercept = 0, lty = 2) + geom_vline(xintercept = 0, lty = 2) + geom_point(shape = 1) + theme_classic() + facet_wrap(.~StateVar, scale = "free",labeller=labeller(StateVar = variable_names)) + ylab("Interaction effect (%)") + xlab("Earthworm effect (%)") + scale_color_gradient(name = "Days", low = "blue", high = "orange") + scale_size_continuous(name = "Herbivore \n effect (%)", trans = "log")
+
+png(paste0("modelresults_",Sys.Date(),"/interactioneffect.png"), width = 8, height = 5, units = "in", res = 600)
+effectplot1
 dev.off()
 
-out1 %>% ggplot(aes(x = HE*100, y = IE*100)) + geom_hline(yintercept = 0, lty = 2) + geom_vline(xintercept = 0, lty = 2) + geom_point() + theme_classic() + facet_wrap(.~StateVar, scale = "free",labeller=labeller(StateVar = variable_names)) + ylab("Interaction effect (%)") + xlab("Herbivore effect (%)")
-
+png(paste0("modelresults_",Sys.Date(),"/interactioneffect2.png"), width = 8, height = 5, units = "in", res = 600)
+effectplot2
+dev.off()
