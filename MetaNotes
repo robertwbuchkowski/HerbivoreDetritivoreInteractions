@@ -14,6 +14,13 @@ In order to account for two plants being about to take more resources, we added 
 
 Having trouble fitting in the parameter names...issues b.c 5 runs are not lining up.
 
+
+# Notes March 31 2020
+
+Have a ~174000 runs from the cluster. Model doesn't fit great, actually I think it fit better with fewer runs. Probably worth calculating the feedback size for all these runs and plotting that as parameter uncertainty.
+
+
+
 # Loads
 
 scp -r -p rwb45@grace.hpc.yale.edu:/home/fas/schmitz/rwb45/Model_parameter_reps /Users/robertbuchkowski/Documents/GitHub_Repos/HerbivoreDetritivoreInteractions/

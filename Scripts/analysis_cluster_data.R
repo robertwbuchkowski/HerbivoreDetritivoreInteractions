@@ -3,9 +3,7 @@
 
 require(tidyverse)
 verbose = F
-loadcsv = T
-
-# NEED TO CLEAN THIS UP. STILL LOTS OF OLDER CODE
+loadcsv = F
 
 # Load parameter vector and data -----
 
@@ -26,23 +24,32 @@ if(loadcsv){
   
   data2 <- do.call("rbind", listOfDataFrames)
   
-  rm(listOfDataFrames)
+  rm(listOfDataFrames,ftoload)
   
   
   data2$Run = paste0(data2$Run, data2$Run2)
   
+  data2[(data2$Run == "1265295198941570"),"Run"] = paste0("1265295198941570", rep(c("a", "b"), each = 160))
+  
+  data2[(data2$Run == "9350897575923356"),"Run"] = paste0("9350897575923356", rep(c("a", "b"), each = 160))
+  
   # check for duplicate Run names and replace them
-  table(data2$Run)[table(data2$Run) > 160]
+  table(data2$Run)[table(data2$Run) != 160]
+  
+  # Get rid of RUNS without full list
+  data2 = data2 %>% filter(!(Run %in% c("136000865099306", "607788797750269", "6910132952357214", "8144381321489318")))
+  
+  
+  # Get rid of old runs with different parameters
+  data2 = data2 %>% filter(!(Run %in% c("781432577815019", "913552857172145", "1661660371424339", "3920818041951100", "2666331860014817")))
 
-  # saveRDS(data2, file = paste0("Data/fullmodeloutput_",Sys.Date(),".rds"))
+  saveRDS(data2, file = paste0("Data/fullmodeloutput_",Sys.Date(),".rds"))
 }
 
-# Get rid of old runs with different parameters
 
-data2 = data2 %>% filter(!(Run %in% c("781432577815019", "913552857172145", "1661660371424339", "3920818041951100", "2666331860014817")))
 
 # The following .rds file was created by using the function "rbind" to join individual model outputs
-# data2 <- readRDS("Data/fullmodeloutput_12Aug2019.rds")
+data2 <- readRDS("Data/fullmodeloutput_2020-04-07.rds")
 
 params<- c(Vlm_mod = 8e-6,
            Vsm_mod = 4e-06,
@@ -159,24 +166,14 @@ table(errord %>% select(Best))
 # Save ID of selected Runs 
 # errord %>% filter(Best == "Yes") %>% write_csv(paste0("Data/selected_runs_", Sys.Date(),".csv"))
 
-
-if(verbose){
-  # check for extinctions (None observed, unless expected (i.e. no herbivores in N or W treatments))
-  data4 %>% as_tibble() %>%
-    left_join(errord %>% select(Run, Best)) %>% filter(Best=="Yes") %>% # pick best runs
-    select(-Msd, -Best) %>%
-    filter(StateVar %in% c("H", "W")) %>%
-    group_by(Treatment, Run, StateVar) %>%
-    summarize(Model = prod(Model)) %>% # use product to search for zeros in each vector
-    spread(key = Treatment, value=Model) %>% View()
-}
-
-
 # calculate R2 by treatment using the average model runs of best models
 
-(databest = data4 %>% 
-  left_join(errord %>% select(Run, Best)) %>% filter(Best=="Yes") %>% # pick best runs
-  select(-Msd, -Best) %>%
+bestruns = errord %>% filter(Best=="Yes") %>% select(Run) %>% pull()
+
+data5 = data4[data4$Run %in% bestruns,]
+data5$Msd = NULL
+
+(databest = data5 %>%
   group_by(Treatment, time, StateVar) %>%
   summarize(Model = median(Model)) %>%
   ungroup() %>%
@@ -193,15 +190,11 @@ databest2 = databest %>%
 variable_names <- c(
   "H" = "Herbivore" ,
   "M" = "Microbial",
-  "N" = "Inorganic",
+  "N" = "Inorganic N",
   "P" = "Plant",
   "W" = "Earthworm",
   "L" = "Litter",
-  "R" = "Root",
-  "S" = "Stable Soil",
-  "U" = "Unstable Soil",
-  "GPP" = "GPP",
-  "Nmin" = "Mineralization"
+  "S" = "Soil"
 )
 
 variable_names_Expt <- c(
@@ -214,12 +207,7 @@ variable_names_Expt <- c(
 #create directory for results
 dir.create(paste0("plots_from_",Sys.Date()))
 
-parplot1 = data4 %>% 
-  left_join(
-    errord %>% select(Run, Best)
-  ) %>% 
-  filter(Best=="Yes") %>% # pick best runs
-  select(-Msd, -Best) %>%
+parplot1 = data5 %>% 
   group_by(Treatment, time, StateVar) %>%
   summarize(
     lowModel = quantile(Model, 0.25),
@@ -272,134 +260,33 @@ parplot1 %>%
                                 "Herbivore removal"))
 dev.off()
 
-if(verbose){
-  data4 %>% 
-    left_join(
-      errord %>% select(Run, Best)
-    ) %>% 
-    filter(Best=="Yes") %>% # pick best runs
-    select(-Msd, -Best) %>%
-    group_by(Treatment, time, StateVar, Expt) %>%
-    summarize(
-      lowModel = quantile(Model, 0.25),
-      upModel = quantile(Model, 0.75),
-      Model = median(Model)
-    ) %>%
-    ungroup() %>%
-    left_join(datatomodel3) %>% filter(!is.na(mBio)) %>%
-    select(time, Treatment, StateVar, mBio, Model)
-}
-
-# Compare effect sizes and directions!
-png(paste0("plots_from_",Sys.Date(),"/","EffectSize_compare", Sys.Date(),".png"), width=8,
-    height=5, units="in", res=300)
-
-datatomodel3 %>% select(time, Treatment, StateVar, mBio) %>%
-  spread(key = Treatment, value=mBio) %>%
-  mutate(EOH1 = (H-N),
-         EOW1 = (W-N),
-         EOW2 = (Rt - RmW),
-         EOH2 = (RtH - RmH)) %>%
-  select(time, StateVar, EOH1:EOH2) %>%
-  gather(-time, -StateVar, key=Effect, value=ExptSize) %>%
-  filter(!is.na(ExptSize)) %>%
-  left_join(
-    #*********************************************#
-    data4 %>% as_tibble() %>%
-      left_join(
-        errord %>% select(Run, Best)
-      ) %>% 
-      filter(Best=="Yes") %>% # pick best runs
-      select(-Msd, -Best, -Expt) %>%
-      spread(key = Treatment, value=Model) %>%
-      group_by(time, StateVar) %>%
-      summarize(EOH1 = median(H-N),
-                EOW1 = median(W-N),
-                EOW2 = median(Rt - RmW),
-                EOH2 = median(RtH - RmH)) %>%
-      gather(-time, -StateVar, key=Effect, value=ModelSize)
-    #*********************************************#
-  ) %>%
-  ggplot(aes(x=ModelSize, y=ExptSize, color=Effect)) + 
-  geom_point(aes(size=time)) + 
-  facet_wrap(.~StateVar, scale="free") + theme_classic() +
-  geom_vline(xintercept=0, color="grey", linetype="dashed")+
-  geom_hline(yintercept=0, color="grey", linetype="dashed")
-
-dev.off()
-
-prepselect <- data4 %>% as_tibble() %>%
-  left_join(
-    errord %>% select(Run, Best)
-  ) %>% 
-  filter(Best=="Yes") %>%
-  select(-Msd, -Expt, -Best) %>%
-  group_by(Treatment, StateVar, Run) %>%
-  summarize(MS = sum(Model)) %>%
-  arrange(desc(MS))
-
-# 50 runs, so take Run 25, 50, 75
-ppdata <- prepselect %>% 
-  do(slice(., 12)) %>% rename(upper = Run) %>% select(-MS) %>%
-  full_join(
-    prepselect %>% 
-      do(slice(., 25)) %>% rename(median = Run) %>% select(-MS)
-  ) %>%
-  full_join(
-    prepselect %>% 
-      do(slice(.,38)) %>% rename(lower = Run) %>% select(-MS)
-  ) %>%
-  gather(-Treatment, -StateVar, key=QT, value=Run) %>%
-  left_join(
-    data4 %>% as_tibble() %>%
-      left_join(
-        errord %>% select(Run, Best)
-      ) %>% 
-      filter(Best=="Yes") %>%
-      select(-Msd, -Best)
-  ) %>% select(-Run)
-
-ppdata2 <- datatomodel3 %>% 
-  filter(Treatment %in% c("N", "H", "W", "HW")) %>%
-  mutate(Year = time/365)
-
-png(paste0("plots_from_",Sys.Date(),"/","model_expt_time", Sys.Date(),".png"), width=8,
-    height=5, units="in", res=300)
-ppdata %>% filter(Expt == 2) %>%
-  mutate(Year = time/365) %>%
-  ggplot(aes(x=Year, color=Treatment)) +
-  geom_line(aes(y=Model,linetype=QT)) + theme_classic() + 
-  facet_wrap(.~StateVar, scales="free") +
-  scale_linetype_manual(values=c("dashed", "solid", "dashed")) +
-  geom_point(data = ppdata2, aes(y=mBio)) + 
-  geom_errorbar(data = ppdata2, aes(ymin=lowBio, ymax = upBio))
-dev.off()
-
-
 # Look at state variable distribution for selected runs
 
-if(verbose){
-  png(paste0("plots_from_",Sys.Date(),"/","state_var_dist_", Sys.Date(),".png"), width=8,
-      height=5, units="in", res=300)
-  data4 %>% 
-    left_join(errord %>% select(Run, Best)) %>% 
-    filter(Best =="Yes") %>%
-    ggplot(aes(x=Model, fill=as.factor(time))) + 
-    geom_histogram() + facet_wrap(.~StateVar, scales="free")
-  dev.off()
-  
-  # Look at selected Runs
-  errord %>% ggplot(aes(x=fit, fill = Best)) + geom_histogram(binwidth = 10) + theme_classic()
-}
+png(paste0("plots_from_",Sys.Date(),"/","state_var_dist_", Sys.Date(),".png"), width=8,
+    height=5, units="in", res=300)
+# data5 %>%
+#   ggplot(aes(x=Model, fill=as.factor(time))) + 
+#   geom_histogram() + facet_wrap(.~StateVar, scales="free") + theme_classic()
 
-# Calculate the parameters that vary
-par1 %>% group_by(NPAR) %>% summarize(sd = sd(PARS)) %>% filter(sd > 0)
+data5 %>% filter(time ==1395) %>%
+  ggplot(aes(x=Model, fill = Treatment)) + 
+  geom_histogram() + facet_wrap(.~StateVar, scales="free") + theme_classic() +
+  scale_fill_discrete(breaks=c("N", "H", "W", "HW",
+                                "Rt", "RmW", "RtH", "RmH"),
+                       labels=c("None (Expt)", "Herbivore (Expt)",
+                                "Earthworm (Expt)",
+                                "Both (Expt)", 
+                                "Worm control",
+                                "Worm removal", 
+                                "Herbivore control",
+                                "Herbivore removal"))
+dev.off()
 
-par1 %>% filter(NPAR == "Tref_P")
+
+# Look at parameter matches
 
 par2 = par1 %>% left_join(errord) %>% 
-  mutate(Manip = ifelse(NPAR %in% names(params[c(1:31)]),
-                        "Yes", "No"))
+  filter(!NPAR %in% c("Tref_W", "Tref_P") & !is.na(fit))
 
 parVT = par2 %>% filter(Manip=="Yes") %>% filter(!is.na(fit))
 pvec = unique(parVT$NPAR)
@@ -445,3 +332,22 @@ ggplot(par_plot, aes(x=NPAR, y=median), size=2) +
 dev.off()
 
 rm(par_plot)
+
+# Calculate distribution of feedback size ----
+
+out1 = errord %>% filter(Best == "Yes") %>%
+  select(Run) %>%
+  left_join(data3) %>%
+  filter(Treatment %in% c("N", "W", "H", "HW")) %>% 
+  select(-Expt) %>%
+  gather(-time, -Treatment, -Run, key = StateVar, value = Biomass) %>%
+  spread(key = Treatment, value = Biomass) %>% mutate(IE = (HW - H - W + N)/N) %>%
+  mutate(WE = (W - N)/N, HE = (H - N)/N) %>% select(time, Run, StateVar, IE, WE, HE) %>% filter(!(StateVar %in% c("W", "H"))) %>% mutate(IE = round(IE, digits = 8), WE = round(WE, digits = 8), HE = round(HE, digits = 8))
+
+
+png("plots_from_2020-03-31/interactioneffect.png", width = 8, height = 5, units = "in", res = 600)
+out1 %>% ggplot(aes(x = WE*100, y = IE*100, color = time)) + geom_hline(yintercept = 0, lty = 2) + geom_vline(xintercept = 0, lty = 2) + geom_point(shape = 1) + theme_classic() + facet_wrap(.~StateVar, scale = "free",labeller=labeller(StateVar = variable_names)) + ylab("Interaction effect (%)") + xlab("Earthworm effect (%)") + scale_color_gradient(name = "Days", low = "blue", high = "orange")
+dev.off()
+
+out1 %>% ggplot(aes(x = HE*100, y = IE*100)) + geom_hline(yintercept = 0, lty = 2) + geom_vline(xintercept = 0, lty = 2) + geom_point() + theme_classic() + facet_wrap(.~StateVar, scale = "free",labeller=labeller(StateVar = variable_names)) + ylab("Interaction effect (%)") + xlab("Herbivore effect (%)")
+
