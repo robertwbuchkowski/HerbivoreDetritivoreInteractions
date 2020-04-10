@@ -23,4 +23,8 @@ Have a ~174000 runs from the cluster. Model doesn't fit great, actually I think 
 
 # Loads
 
-scp -r -p rwb45@grace.hpc.yale.edu:/home/fas/schmitz/rwb45/Model_parameter_reps /Users/robertbuchkowski/Documents/GitHub_Repos/HerbivoreDetritivoreInteractions/
+scp /Users/robertbuchkowski/Documents/GitHub_Repos/HerbivoreDetritivoreInteractions/Scripts/cluster_eqm.R rwb45@grace.hpc.yale.edu:/home/fas/schmitz/rwb45/scripts/
+
+scp -r -p rwb45@grace.hpc.yale.edu:/home/fas/schmitz/rwb45/Model_eqm_reps /Users/robertbuchkowski/Documents/GitHub_Repos/HerbivoreDetritivoreInteractions/
+
+scp -r -p rwb45@grace.hpc.yale.edu:/home/fas/schmitz/rwb45/Model_param_reps /Users/robertbuchkowski/Documents/GitHub_Repos/HerbivoreDetritivoreInteractions/

@@ -1,4 +1,4 @@
-# Analysis of simple DC model
+# Analysis of simple DC model ----
 
 params = c(Vpn = 1,
            tp = 1,
@@ -42,12 +42,24 @@ test <-function(parms){
                               (tw*(k*q*tp + l*q*tp + k*q*Vhp + l*q*Vhp + l*tp*Vpn + eh*l*Vhp*Vpn + q*tp*Vwl - ew*q*tp*Vwl + q*Vhp*Vwl - ew*q*Vhp*Vwl)))
       )
     
+    if(all(c(out[out$nvec == "N",-1] < out[out$nvec == "P",-1],
+          out[out$nvec == "N",-1] < out[out$nvec == "L",-1],
+          out[out$nvec == "H",-1] < 100*out[out$nvec == "P",-1],
+          out[out$nvec == "W",-1] < 100*out[out$nvec == "L",-1]))){
+      
+      Best = 1
+    }else{
+      Best = 0
+    }
+    
+    out[,"Best"] = Best
+    rm(Best)
+    
     return(out)
     
   })
   
 }
-
 
 outlist <- vector(mode = "list", length = 10000)
 paramlist <- vector(mode = "list", length = 10000)
@@ -80,9 +92,11 @@ outlist2 = do.call("rbind", outlist)
 
 outlist2 = outlist2[!(outlist2$nvec %in% c("H", "W")),]
 
-outlist2[,"WE"] = (outlist2$m2 - outlist2$m1)#/outlist2$m1
-outlist2[,"HE"] = (outlist2$m3 - outlist2$m1)#/outlist2$m1
-outlist2[,"IE"] = (outlist2$m4 - outlist2$m3 - outlist2$m2 + outlist2$m1)#/outlist2$m1
+outlist2[,"WE"] = (outlist2$m2 - outlist2$m1)
+outlist2[,"HE"] = (outlist2$m3 - outlist2$m1)
+outlist2[,"IE"] = (outlist2$m4 - outlist2$m3 - outlist2$m2 + outlist2$m1)
+outlist2[,"IEpred"] = outlist2[,"WE"] + outlist2[,"HE"]
+outlist2[,"IEacc"] = outlist2$m4 - outlist2$m1
 
 outlist2[,"ncol"] = ifelse(outlist2$nvec == "P", "#009E73",
                            ifelse(outlist2$nvec == "L", "#E69F00",
@@ -93,10 +107,19 @@ outlist2[,"npch"] = ifelse(outlist2$nvec == "P", 1,
                            ifelse(outlist2$nvec == "L", 2,
                                   ifelse(outlist2$nvec == "N", 3,
                                          4)))
+
+# outlist2 = outlist2[outlist2$WE !=0 & outlist2$HE !=0,]
+
+# outlist2[,"Ratio"] = outlist2$IE/outlist2$WE
+
+# View(outlist2[outlist2$Ratio > 10,])
+
+outlist2[,"ncex"] = ifelse(outlist2$Best == 1, 1, 0.5)
+
 png("Plots/DCmodel.png", width = 8, height = 5, units = "in", res = 600)
 par(mfrow=c(1,2))
 plot((abs(IE+1e-6))~(abs(WE+1e-6)), data = outlist2, log = 'xy', col = ncol, pch = npch,
-     xlab= "Earthworm Effect (log|WE|)", ylab = "Interaction Effect (log|IE|)")
+     xlab= "Detritivore Effect (log|WE|)", ylab = "Interaction Effect (log|IE|)", cex = ncex)
 abline(a = 0, b = 1, lty = 2, lwd = 2)
 abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
 abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
@@ -105,7 +128,7 @@ abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 legend("topleft", legend = c("Plant", "Litter", "Inorganic N"),
        col = c("#009E73","#E69F00","#56B4E9"), pch = 1:3)
 plot((abs(IE+1e-6))~(abs(HE+1e-6)), data = outlist2, log = 'xy', col = ncol, pch = npch,
-     xlab= "Herbivore Effect (log|HE|)", ylab = "")
+     xlab= "Herbivore Effect (log|HE|)", ylab = "", cex = ncex)
 abline(a = 0, b = 1, lty = 2, lwd = 2)
 abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
 abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
@@ -113,7 +136,7 @@ abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 dev.off()
 
-# Analysis of simple LV model
+# Analysis of simple LV model ----
 
 test2 <- function(Ni){
   k = 1 
@@ -261,6 +284,18 @@ test2 <- function(Ni){
                        m4 = m4,
                        N = Ni)
   
+  if(all(c(output[output$nvec == "N",-1] < output[output$nvec == "P",-1],
+           output[output$nvec == "N",-1] < output[output$nvec == "L",-1],
+           output[output$nvec == "H",-1] < 100*output[output$nvec == "P",-1],
+           output[output$nvec == "W",-1] < 100*output[output$nvec == "L",-1]))){
+    
+    Best = 1
+  }else{
+    Best = 0
+  }
+  
+  output[,"Best"] = Best
+  
   return(list(output, c(params, N = Ni)))
 }
 
@@ -279,6 +314,9 @@ out4 = out4[!(out4$nvec %in% c("H", "W", "rmax")),]
 out4[,"WE"] = (out4$m2 - out4$m1)
 out4[,"HE"] = (out4$m3 - out4$m1)
 out4[,"IE"] = (out4$m4 - out4$m3 - out4$m2 + out4$m1)
+out4[,"IEpred"] = out4[,"WE"] + out4[,"HE"]
+out4[,"IEacc"] = out4$m4 - out4$m1
+
 
 out4[,"ncol"] = ifelse(out4$nvec == "P", "#009E73",
                            ifelse(out4$nvec == "L", "#E69F00",
@@ -290,10 +328,12 @@ out4[,"npch"] = ifelse(out4$nvec == "P", 1,
                                   ifelse(out4$nvec == "N", 3,
                                          4)))
 
+out4[,"ncex"] = ifelse(out4$Best == 1, 1, 0.5)
+
 png("Plots/LVmodel.png", width = 8, height = 5, units = "in", res = 600)
 par(mfrow=c(1,2))
 plot((abs(IE+1e-6))~(abs(WE+1e-6)), data = out4, log = 'xy', col = ncol, pch = npch,
-     xlab= "Earthworm Effect (log|WE|)", ylab = "Interaction Effect (log|IE|)")
+     xlab= "Earthworm Effect (log|WE|)", ylab = "Interaction Effect (log|IE|)",cex = ncex)
 abline(a = 0, b = 1, lty = 2, lwd = 2)
 abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
 abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
@@ -302,7 +342,7 @@ abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 legend("topleft", legend = c("Plant", "Litter", "Inorganic N"),
        col = c("#009E73","#E69F00","#56B4E9"), pch = 1:3)
 plot((abs(IE+1e-6))~(abs(HE+1e-6)), data = out4, log = 'xy', col = ncol, pch = npch,
-     xlab= "Herbivore Effect (log|HE|)", ylab = "")
+     xlab= "Herbivore Effect (log|HE|)", ylab = "",cex = ncex)
 abline(a = 0, b = 1, lty = 2, lwd = 2)
 abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
 abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
@@ -310,23 +350,156 @@ abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 dev.off()
 
-# Put out the combined plot
+# Plot the most complex model ----
 
-png("Plots/Bothmodel.png", width = 8, height = 8, units = "in", res = 600)
-par(mfrow=c(2,2), mar = c(5,4,2,2))
-plot((abs(IE+1e-6))~(abs(WE+1e-6)), data = out4, log = 'xy', col = ncol, pch = npch,
-     xlab= "Detritivore Effect (log|DE|)", ylab = "Interaction Effect (log|IE|)")
+# Load in the cluster data
+
+dirtoload = "Model_eqm_reps/"
+
+ftoload = list.files(dirtoload)
+
+listOfDataFrames <- vector(mode = "list", length = length(ftoload))
+
+for(ii in 1:length(ftoload)){
+  listOfDataFrames[[ii]] <- read.csv(paste0(dirtoload,ftoload[ii]))
+}
+
+data2 <- do.call("rbind", listOfDataFrames)
+
+dirtoload = "Model_param_reps/"
+
+ftoload = list.files(dirtoload)
+
+listOfDataFrames <- vector(mode = "list", length = length(ftoload))
+
+for(ii in 1:length(ftoload)){
+  listOfDataFrames[[ii]] <- read.csv(paste0(dirtoload,ftoload[ii]))
+}
+
+param2 <- do.call("rbind", listOfDataFrames)
+
+rm(listOfDataFrames,ftoload)
+
+# Analyze the data
+
+library(tidyverse)
+
+data2a = data2 %>% as_tibble() %>% 
+  gather(-X, -Stable, -ID, key = StateVar, value = biomass) %>%
+  filter(Stable == 1) %>%
+  separate(X, into = c(NA, "X"), sep = 7)
+
+data2b = data2a %>%
+  group_by(ID) %>% summarize(N = n()) %>% filter(N == 28) %>%
+  select(ID) %>%
+  left_join(
+    data2a
+  ) %>%
+  spread(key = X, value = biomass) %>%
+  filter(!StateVar %in% c("H", "W")) %>% select(-Stable)
+
+data2c = data2b %>%
+  mutate(WE = W - N,
+         HE = H - N,
+         IE = HW - H - W + N) %>%
+  mutate(IEacc = HW -N,
+         IEpred = HE + WE) %>%
+  left_join(
+    data.frame(StateVar = c("P", "L", "N", "S", "M"),
+               ncol = as.character(c("#009E73","#E69F00","#56B4E9","#F0E442", "#0072B2")),
+               npch = c(1,2,3,4,5))
+  ) %>%
+  left_join(
+    data2 %>% as_tibble() %>% 
+      mutate(Best = ifelse(N < P & N < L & H < 100*P & W < 100*L, 1,0)) %>%
+      group_by(ID) %>% summarize(N = sum(Best)) %>%
+      mutate(ncex = ifelse(N == 4, 1, 0.5)) %>%
+      select(ID, ncex)
+  )
+
+data2c$ncol = as.character(data2c$ncol)
+
+plot((abs(IE+1e-6))~(abs(WE+1e-6)), data = data2c, log = 'xy', col = ncol, pch = npch,
+     xlab= "Detritivore Effect (log|DE|)", ylab = "Interaction Effect (log|IE|)", cex = ncex)
 abline(a = 0, b = 1, lty = 2, lwd = 2)
 abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
 abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
 abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-legend("top", legend = c("Plant", "Litter", "Inorganic N"),
-       col = c("#009E73","#E69F00","#56B4E9"), pch = 1:3)
+legend("topleft", legend = "E", bty = "n")
+
+plot((abs(IE+1e-6))~(abs(HE+1e-6)), data = data2c, log = 'xy', col = ncol, pch = npch,
+     xlab= "Herbivore Effect (log|HE|)", ylab = "", cex = ncex)
+abline(a = 0, b = 1, lty = 2, lwd = 2)
+abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
+abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
+abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
+abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
+legend("topleft", legend = "F", bty = "n")
+
+
+data.frame(StateVar = c("P", "L", "N", "S", "M"),
+           ncol = c("#009E73","#E69F00","#56B4E9","#F0E442", "#0072B2"),
+           npch = c(1,2,3,4,5))
+
+
+# c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+# Put out the combined plot ----
+
+png("Plots/Bothmodel2.png", width = 8, height = 8, units = "in", res = 600)
+par(mfrow=c(2,2))
+plot((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = outlist2, log = 'xy', col = ncol, pch = npch, cex = ncex,
+     xlab= "Linear Comination (log|x|)", ylab = "True combination (log|x|)", type = "n", main = "Simple: Donor controlled")
+abline(a = 0, b = 1, lty = 2, lwd = 2)
+abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
+abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
+abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
+abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
+points((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = outlist2, col = ncol, pch = npch, cex = ncex)
+legend("bottomright", legend = c("Plant", "Litter", "Inorganic N", "Soil", "Microbe"),
+       col = c("#009E73","#E69F00","#56B4E9", "#F0E442","#0072B2"), pch = 1:5)
 legend("topleft", legend = "A", bty = "n")
 
-plot((abs(IE+1e-6))~(abs(HE+1e-6)), data = out4, log = 'xy', col = ncol, pch = npch,
-     xlab= "Herbivore Effect (log|HE|)", ylab = "")
+plot((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = out4, log = 'xy', col = ncol, pch = npch, cex = ncex,
+     xlab= "Linear Comination (log|x|)", ylab = "True combination (log|x|)", type = "n", main = "Simple: Type I")
+abline(a = 0, b = 1, lty = 2, lwd = 2)
+abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
+abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
+abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
+abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
+points((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = out4, col = ncol, pch = npch, cex = ncex)
+legend("topleft", legend = "B", bty = "n")
+
+plot((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = data2c, log = 'xy', col = ncol, pch = npch, cex = ncex,
+     xlab= "Linear Comination (log|x|)", ylab = "True combination (log|x|)", type = "n", main = "Complex: Type II")
+abline(a = 0, b = 1, lty = 2, lwd = 2)
+abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
+abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
+abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
+abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
+points((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = data2c, col = ncol, pch = npch, cex = ncex)
+legend("topleft", legend = "C", bty = "n")
+dev.off()
+
+# Older version ----
+
+png("Plots/Bothmodel.png", width = 8, height = 12, units = "in", res = 600)
+par(mfrow=c(3,2), mar = c(5,4,2,2))
+
+plot((abs(IE+1e-6))~(abs(WE+1e-6)), data = outlist2, log = 'xy', col = ncol, pch = npch,
+     xlab= "Detritivore Effect (log|DE|)", ylab = "Interaction Effect (log|IE|)", cex = ncex)
+abline(a = 0, b = 1, lty = 2, lwd = 2)
+abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
+abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
+abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
+abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
+legend("top", legend = c("Plant", "Litter", "Inorganic N", "Soil", "Microbe"),
+       col = c("#009E73","#E69F00","#56B4E9", "#F0E442","#0072B2"), pch = 1:5)
+legend("topleft", legend = "A", bty = "n")
+
+plot((abs(IE+1e-6))~(abs(HE+1e-6)), data = outlist2, log = 'xy', col = ncol, pch = npch,
+     xlab= "Herbivore Effect (log|HE|)", ylab = "", cex = ncex)
 abline(a = 0, b = 1, lty = 2, lwd = 2)
 abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
 abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
@@ -334,8 +507,8 @@ abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 legend("topleft", legend = "B", bty = "n")
 
-plot((abs(IE+1e-6))~(abs(WE+1e-6)), data = outlist2, log = 'xy', col = ncol, pch = npch,
-     xlab= "Detritivore Effect (log|DE|)", ylab = "Interaction Effect (log|IE|)")
+plot((abs(IE+1e-6))~(abs(WE+1e-6)), data = out4, log = 'xy', col = ncol, pch = npch,
+     xlab= "Detritivore Effect (log|DE|)", ylab = "Interaction Effect (log|IE|)",cex = ncex)
 abline(a = 0, b = 1, lty = 2, lwd = 2)
 abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
 abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
@@ -343,13 +516,31 @@ abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 legend("topleft", legend = "C", bty = "n")
 
-plot((abs(IE+1e-6))~(abs(HE+1e-6)), data = outlist2, log = 'xy', col = ncol, pch = npch,
-     xlab= "Herbivore Effect (log|HE|)", ylab = "")
+plot((abs(IE+1e-6))~(abs(HE+1e-6)), data = out4, log = 'xy', col = ncol, pch = npch,
+     xlab= "Herbivore Effect (log|HE|)", ylab = "",cex = ncex)
 abline(a = 0, b = 1, lty = 2, lwd = 2)
 abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
 abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
 abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 legend("topleft", legend = "D", bty = "n")
+
+plot((abs(IE+1e-6))~(abs(WE+1e-6)), data = data2c, log = 'xy', col = ncol, pch = npch,
+     xlab= "Detritivore Effect (log|DE|)", ylab = "Interaction Effect (log|IE|)", cex = ncex)
+abline(a = 0, b = 1, lty = 2, lwd = 2)
+abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
+abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
+abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
+abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
+legend("topleft", legend = "E", bty = "n")
+
+plot((abs(IE+1e-6))~(abs(HE+1e-6)), data = data2c, log = 'xy', col = ncol, pch = npch,
+     xlab= "Herbivore Effect (log|HE|)", ylab = "", cex = ncex)
+abline(a = 0, b = 1, lty = 2, lwd = 2)
+abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
+abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
+abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
+abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
+legend("topleft", legend = "F", bty = "n")
 
 dev.off()
