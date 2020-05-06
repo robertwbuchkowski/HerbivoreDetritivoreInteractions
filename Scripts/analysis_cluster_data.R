@@ -1,5 +1,5 @@
 # Analysis of cluster data
-# Mar 28 2020
+# Apr 11 2020
 
 require(tidyverse)
 verbose = F
@@ -45,8 +45,6 @@ if(loadcsv){
 
   saveRDS(data2, file = paste0("Data/fullmodeloutput_",Sys.Date(),".rds"))
 }
-
-
 
 # The following .rds file was created by using the function "rbind" to join individual model outputs
 data2 <- readRDS("Data/fullmodeloutput_2020-04-07.rds")
@@ -367,12 +365,50 @@ out1 = runID %>%
   ) %>%
   gather(-time, -Treatment, -Run, - Best, key = StateVar, value = Biomass) %>%
   spread(key = Treatment, value = Biomass) %>% 
-  filter(N > 1e-04) %>%
-  mutate(IE = (HW - H - W + N)/N) %>%
-  mutate(WE = (W - N)/N, HE = (H - N)/N) %>% 
-  select(time, Run, StateVar, Best, IE, WE, HE) %>% 
-  filter(!(StateVar %in% c("W", "H"))) %>% 
-  mutate(IE = round(IE, digits = 8), WE = round(WE, digits = 8), HE = round(HE, digits = 8))
+  # filter(N > 1e-04) %>%
+  mutate(IE = (HW - H - W + N)) %>%
+  mutate(WE = (W - N), HE = (H - N)) %>% 
+  mutate(IEpred = WE + HE, IEacc = HW - N) %>%
+  select(time, Run, StateVar, Best, IE, WE, HE, IEacc, IEpred) %>% 
+  filter(!(StateVar %in% c("W", "H"))) 
+
+out2 = out1 %>%
+  left_join(
+    data.frame(StateVar = c("P", "L", "N", "S", "M"),
+               ncol = as.character(c("#009E73","#E69F00","#56B4E9","#F0E442", "#0072B2")),
+               npch = c(1,2,3,4,5))
+  ) %>%
+  left_join(
+    data.frame(Best = c("Yes", "No"),
+               ncex = c(1, 0.5))
+  )
+
+dim(out2)
+
+out3 = out2[1:(5*10000),]
+
+out4 = out2 %>% filter(Best == "Yes")
+
+out3 = out3 %>% bind_rows(out4) %>% distinct()
+
+write_rds(out3, "Data/TrueLinearComplex.rds")
+
+png("Plots/simmodel.png", width = 8, height = 8, units = "in", res = 600)
+plot((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = out3, log = 'xy', col = ncol, pch = npch, cex = ncex,
+     xlab= "Linear Comination (log|x|)", ylab = "True combination (log|x|)", type = "n", main = "Complex: 4-year treatment")
+abline(a = 0, b = 1, lty = 2, lwd = 2)
+abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
+abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
+abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
+abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
+points((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = out3, col = ncol, pch = npch, cex = ncex)
+legend("topleft", legend = "D", bty = "n")
+dev.off()
+
+
+
+# %>% 
+#   mutate(IE = round(IE, digits = 8), WE = round(WE, digits = 8), HE = round(HE, digits = 8))
 
 rm(data3)
 
