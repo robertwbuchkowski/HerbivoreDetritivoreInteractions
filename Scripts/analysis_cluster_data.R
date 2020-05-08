@@ -405,22 +405,25 @@ points((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = out3, col = ncol, pch = npch
 legend("topleft", legend = "D", bty = "n")
 dev.off()
 
-
-
-# %>% 
-#   mutate(IE = round(IE, digits = 8), WE = round(WE, digits = 8), HE = round(HE, digits = 8))
-
 rm(data3)
 
-effectplot2 = out1 %>% gather(- Best, -time, -Run, -StateVar, key = Effect, value = value) %>%
-  mutate(value = 100*abs(value) + 1e-6) %>%
-  ggplot(aes(x = value, fill = Effect, color = Best)) + geom_histogram() + theme_classic() + facet_wrap(.~StateVar, scale = "free",labeller=labeller(StateVar = variable_names)) + scale_x_log10() + scale_fill_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Herbivore", "Earthworm", "Interaction"), name = "Effect (%)") + scale_color_manual(values = c("black", "white"), name = "Best empirical fit")
+variable_names <- c(
+  "H" = "Grasshopper" ,
+  "M" = "Microbial biomass",
+  "N" = "Inorganic N",
+  "P" = "Plant biomass",
+  "W" = "Earthworm",
+  "L" = "Litter",
+  "S" = "Soil organic matter"
+)
 
-effectplot1 = out1 %>% filter(Best == "Yes") %>% gather(-time, -Run, -StateVar, key = Effect, value = value) %>% filter(value > 1e-4) %>% filter(value < 1e4) %>%
+effectplot2 = out1 %>% select(-Best, -IEacc, -IEpred) %>% gather(-time, -Run, -StateVar, key = Effect, value = value) %>%
   mutate(value = 100*abs(value) + 1e-6) %>%
-  ggplot(aes(x = value, fill = Effect)) + geom_histogram() + theme_classic() + facet_wrap(.~StateVar, scale = "free",labeller=labeller(StateVar = variable_names)) + scale_x_log10() + scale_fill_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Herbivore", "Earthworm", "Interaction"), name = "Effect (%)")
+  ggplot(aes(x = value, fill = Effect)) + geom_density(alpha = 0.7) + theme_classic() + facet_wrap(.~StateVar, scale = "free",labeller=labeller(StateVar = variable_names)) + scale_x_log10(name = "Effect") + scale_fill_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Grasshopper", "Earthworm", "Interaction"), name = "Effect (%)")
 
-out1 %>% ggplot(aes(x = WE*100, y = IE*100, color = time, size = abs(HE))) + geom_hline(yintercept = 0, lty = 2) + geom_vline(xintercept = 0, lty = 2) + geom_point(shape = 1) + theme_classic() + facet_wrap(.~StateVar, scale = "free",labeller=labeller(StateVar = variable_names)) + ylab("Interaction effect (%)") + xlab("Earthworm effect (%)") + scale_color_gradient(name = "Days", low = "blue", high = "orange") + scale_size_continuous(name = "Herbivore \n effect (%)", trans = "log")
+effectplot1 = out1 %>% filter(Best == "Yes") %>% select(-Best, -IEacc, -IEpred) %>% gather(-time, -Run, -StateVar, key = Effect, value = value) %>%
+  mutate(value = 100*abs(value) + 1e-6) %>%
+  ggplot(aes(x = value, fill = Effect)) + geom_density(alpha = 0.7) + theme_classic() + facet_wrap(.~StateVar, scale = "free",labeller=labeller(StateVar = variable_names)) + scale_x_log10(name = "Effect") + scale_fill_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Grasshopper", "Earthworm", "Interaction"), name = "Effect")
 
 png(paste0("modelresults_",Sys.Date(),"/interactioneffect.png"), width = 8, height = 5, units = "in", res = 600)
 effectplot1
@@ -429,3 +432,13 @@ dev.off()
 png(paste0("modelresults_",Sys.Date(),"/interactioneffect2.png"), width = 8, height = 5, units = "in", res = 600)
 effectplot2
 dev.off()
+  
+test1 = out1 %>% filter(Best == "Yes") %>% mutate(IW = -abs(IE) + abs(WE), IH = -abs(IE) + abs(HE)) %>%
+  mutate(IW = IW > 0, IH = IH >0)
+
+table(test1$IW,test1$IH)
+
+test1 = out1 %>% mutate(IW = -abs(IE) + abs(WE), IH = -abs(IE) + abs(HE)) %>%
+  mutate(IW = IW > 0, IH = IH >0)
+
+table(test1$IW,test1$IH)

@@ -2,7 +2,6 @@ require(FME)
 require(lubridate)
 require(tidyverse)
 
-
 # How many years do you want to simulate the experiments?
 simyear = 100
 # 0.0 Create directory if necessary -------
@@ -1215,11 +1214,33 @@ speciescomp %>% as_tibble() %>% mutate(Prop = P1/(P1+P2))  %>%
 
 dev.off()
 
-pdf(paste0("simplemodel_",Sys.Date(),"/talk.pdf"), width=7, height=5)
-toplot %>% filter(time %in% seq(1, 105*365, by = 365/10)) %>% mutate(time = time/365) %>% filter(!(StateVar %in% c("P1", "P2","H", "W"))) %>% filter(Treatment == "dInteraction") %>%
-  ggplot() + geom_line(aes(x=time, y=Biomass, color = Type), alpha=0.5) + theme_classic() + facet_wrap(.~StateVar, scales="free",labeller=labeller(StateVar = StateVar_names)) + ylab("Interaction effect (proportion of control)") + xlab("Time (years)") + geom_hline(yintercept = 0, lty=2) + scale_color_manual(values = c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))
+png(paste0("simplemodel_",Sys.Date(),"/talk.png"), width=7, height=5, units = "in", res = 1000)
+toplot %>% filter(time %in% seq(1, 105*365, by = 365/10)) %>% mutate(time = time/365) %>% filter(!(StateVar %in% c("P1", "P2","H", "W"))) %>% filter(Treatment == "dInteraction") %>% 
+  left_join(
+    tibble(Type = c("Single","Direct", "Direct2", "Multiple", "Multiple2"),
+           Type2 = c("Base","Direct effect 1", "Direct effect 2", "Multiple species 1", "Multiple species 2"))
+  ) %>%
+  ggplot() + geom_line(aes(x=time, y=Biomass, color = Type2), alpha=0.5) + theme_classic() + facet_wrap(.~StateVar, scales="free",labeller=labeller(StateVar = StateVar_names)) + ylab("Interaction effect (proportion of control)") + xlab("Time (years)") + geom_hline(yintercept = 0, lty=2) + scale_color_manual(values = c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))
 dev.off()
 
 pdf(paste0("simplemodel_",Sys.Date(),"/model_expt.pdf"), width=7, height=7)
 plotcompare(outputall, "Single")
+dev.off()
+
+
+effect_names <- c(
+  "aH" = "+ Herbivores" ,
+  "bW" = "+ Earthworms"
+)
+
+png(paste0("simplemodel_",Sys.Date(),"/appendixS2F1.png"), width=8, height=5, units = "in", res = 1000)
+toplot %>% filter(time %in% seq(1, 105*365, by = 365/10)) %>% 
+  mutate(time = time/365) %>% 
+  filter(!(StateVar %in% c("H", "W","P1", "P2"))) %>%
+  left_join(
+    tibble(Type = c("Single","Direct", "Direct2", "Multiple", "Multiple2"),
+           Type2 = c("Base","Direct effect 1", "Direct effect 2", "Multiple species 1", "Multiple species 2"))
+  ) %>%
+  filter(Treatment %in% c("aH", "bW")) %>%
+  ggplot() + geom_line(aes(x=time, y=Biomass, color = Type2), alpha=0.5) + theme_classic() + facet_wrap(Treatment~StateVar, scales="free_y",labeller=labeller(StateVar = StateVar_names, Treatment = effect_names), ncol =5, nrow = 2) + ylab(expression(Biomass~(g[N]~m^-2))) + xlab("Time (years)") + geom_hline(yintercept = 0, lty=2) + scale_color_manual(name = "Model", values = c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")) + theme(legend.position = "top")
 dev.off()

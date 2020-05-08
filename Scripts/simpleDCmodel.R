@@ -65,10 +65,43 @@ test <-function(parms){
 
 outlist <- vector(mode = "list", length = 10000)
 paramlist <- vector(mode = "list", length = 10000)
+simlist <- vector(mode = "list", length = 10000)
 
-simpleDCmodel <- function(t,y, pars){
+simpleDCmodel1 <- function(t,y, pars){
   with(as.list(c(pars,y)),{
-    dP = Vpn*Iorg - tp*P - Vhp*P;
+    dP = Vpn*Iorg - tp*P
+    dIorg = IN - q*Iorg + k*L - Vpn*Iorg
+    dL = tp*P - k*L - l*L
+    
+    return(list(c(dP, dIorg, dL)))
+  })
+}
+
+simpleDCmodel2 <- function(t,y, pars){
+  with(as.list(c(pars,y)),{
+    dP = Vpn*Iorg - tp*P;
+    dIorg = IN - q*Iorg + k*L - Vpn*Iorg + (1 - ew)*Vwl*L
+    dL = tw*W + tp*P - k*L - l*L - Vwl*L
+    dW = ew*Vwl*L - tw*W
+    
+    return(list(c(dP, dIorg, dL, dW)))
+  })
+}
+
+simpleDCmodel3 <- function(t,y, pars){
+  with(as.list(c(pars,y)),{
+    dP = Vpn*Iorg - tp*P - Vhp*P
+    dIorg = IN - q*Iorg + k*L - Vpn*Iorg + (1 - eh)*Vhp*P
+    dL = th*H + tp*P - k*L - l*L
+    dH = eh*Vhp*P - th*H
+    
+    return(list(c(dP, dIorg, dL, dH)))
+  })
+}
+
+simpleDCmodel4 <- function(t,y, pars){
+  with(as.list(c(pars,y)),{
+    dP = Vpn*Iorg - tp*P - Vhp*P
     dIorg = IN - q*Iorg + k*L - Vpn*Iorg + (1 - eh)*Vhp*P + (1 - ew)*Vwl*L
     dL = tw*W + th*H + tp*P - k*L - l*L - Vwl*L
     dH = eh*Vhp*P - th*H
@@ -77,6 +110,8 @@ simpleDCmodel <- function(t,y, pars){
     return(list(c(dP, dIorg, dL, dH, dW)))
   })
 }
+
+t1 = Sys.time()
 
 for(i in 1:10000){
   
@@ -100,10 +135,35 @@ for(i in 1:10000){
   
   yint = test(params)$m4
   names(yint) = c("P", "Iorg", "L","H", "W")
+  # yint = yint*c(0.05, 1, 0.05, 1, 0.05)
   
-  ode(y = yint, times = 1:(365*4), func = simpleDCmodel, parms = params)
+  mm1 = ode(y = yint[1:3], times = c(seq(1,1.9, 0.1),seq(2,(365*4), length = 10)), func = simpleDCmodel1, parms = params)
+  mm2 = ode(y = yint[c(1,2,3,5)], times = c(seq(1,1.9, 0.1),seq(2,(365*4), length = 10)), func = simpleDCmodel2, parms = params)
+  mm3 = ode(y = yint[1:4], times = c(seq(1,1.9, 0.1),seq(2,(365*4), length = 10)), func = simpleDCmodel3, parms = params)
+  mm4 = ode(y = yint, times = c(seq(1,1.9, 0.1),seq(2,(365*4), length = 10)), func = simpleDCmodel4, parms = params)
+  
+  mm5 = (mm4[,c(1:4)] - mm3[,c(1:4)] - mm2[,c(1:4)] + mm1[,c(1:4)])
+  mm5[,1] = mm4[,1]
+  mm5 = data.frame(mm5)
+  mm5[,"Effect"] = "IE"
+  
+  mm6 = (mm2[,c(1:4)] - mm1[,c(1:4)])
+  mm6[,1] = mm4[,1]
+  mm6 = data.frame(mm6)
+  mm6[,"Effect"] = "WE"
   
   
+  mm7 = (mm3[,c(1:4)] - mm1[,c(1:4)])
+  mm7[,1] = mm4[,1]
+  mm7 = data.frame(mm7)
+  mm7[,"Effect"] = "HE"
+  
+  simlist[[i]] = cbind(rbind(mm5, mm6, mm7), N = i)
+  
+  if(i %% 500 == 0){
+    print(paste("Done", i, "in:"))
+    print(round(Sys.time() - t1))
+    }
 }
 
 outlist2 = do.call("rbind", outlist)
@@ -153,6 +213,15 @@ abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
 abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 dev.off()
+
+# Create plot over time
+
+simlist = do.call("rbind", simlist)
+
+simlist %>% gather(-time, -N, -Effect, key = StateVar, value = value) %>%
+  ggplot(aes(x = time, y = value, color = Effect, group = paste0(N, Effect))) + facet_grid(Effect~StateVar, scales = "free") + geom_line() + theme_classic()
+
+aggregate(cbind(P, Iorg, L) ~ time, data = simlist2, FUN = mean)
 
 # Create the other plot
 outlist3 = outlist2
@@ -416,6 +485,89 @@ tempt2 %>% arrange(IEm1) %>% group_by(nvec) %>%
   select(nvec, IEm1, prop) %>%
   distinct() %>%
   ggplot(aes(x = IEm1, y = prop, color = nvec)) + geom_line() + theme_classic() + scale_x_log10()
+
+# Simulate the model over time 
+
+simpleLVmodel1 <- function(t,y, pars){
+  with(as.list(c(pars,y)),{
+    dP = Vpn*Iorg*P - tp*P
+    dIorg = IN - q*Iorg + k*L - Vpn*Iorg*P
+    dL = tp*P - k*L - l*L
+    
+    return(list(c(dP, dIorg, dL)))
+  })
+}
+
+simpleLVmodel2 <- function(t,y, pars){
+  with(as.list(c(pars,y)),{
+    dP = Vpn*Iorg*P - tp*P
+    dIorg = IN - q*Iorg + k*L - Vpn*Iorg*P + (1 - ew)*Vwl*L*W
+    dL = tw*W + tp*P - k*L - l*L - Vwl*L*W
+    dW = ew*Vwl*L*W - tw*W
+    
+    return(list(c(dP, dIorg, dL, dW)))
+  })
+}
+
+simpleLVmodel3 <- function(t,y, pars){
+  with(as.list(c(pars,y)),{
+    dP = Vpn*Iorg*P - tp*P - Vhp*H*P
+    dIorg = IN - q*Iorg + k*L - Vpn*Iorg*P + (1 - eh)*Vhp*P*H
+    dL = th*H + tp*P - k*L - l*L
+    dH = eh*Vhp*P*H - th*H
+    
+    return(list(c(dP, dIorg, dL, dH)))
+  })
+}
+
+simpleLVmodel4 <- function(t,y, pars){
+  with(as.list(c(pars,y)),{
+    dP = Vpn*Iorg*P - tp*P - Vhp*H*P
+    dIorg = IN - q*Iorg + k*L - Vpn*Iorg*P + (1 - eh)*Vhp*P*H + (1 - ew)*Vwl*L*W
+    dL = tw*W + th*H + tp*P - k*L - l*L - Vwl*L*W
+    dH = eh*Vhp*P*H - th*H
+    dW = ew*Vwl*L*W - tw*W
+    
+    return(list(c(dP, dIorg, dL, dH, dW)))
+  })
+}
+
+run1 = test2(1)
+
+params = run1[[2]][1:13]
+
+yint = run1[[1]]$m4[1:5]
+names(yint) = run1[[1]]$nvec[1:5]
+names(yint)[2] = "Iorg"
+
+mm1 = ode(yint[1:3], times = 1:(365*4), func = simpleLVmodel1, parms = params)
+mm2 = ode(yint[c(1,2,3,5)], times = 1:(365*4), func = simpleLVmodel2, parms = params)
+mm3 = ode(yint[1:4], times = 1:(365*4), func = simpleLVmodel3, parms = params)
+mm4 = ode(yint, times = 1:(365*4), func = simpleLVmodel4, parms = params)
+
+mm5 = mm4[,1:4] - mm3[,1:4] - mm2[,1:4] + mm1[,1:4]
+mm5[,1] = mm4[,1]
+
+mm6 = mm2[,1:4] - mm1[,1:4]
+mm6[,1] = mm4[,1]
+
+mm7 = mm3[,1:4] - mm1[,1:4]
+mm7[,1] = mm4[,1]
+
+run1[[1]][1:3, "m4"] - run1[[1]][1:3, "m3"] -run1[[1]][1:3, "m2"] + run1[[1]][1:3, "m1"]
+
+par(mfrow=c(2,2))
+plot(P~time, data = mm5, type = "l", lwd = 2, ylim = c(range(c(mm5[,"P"], mm6[,"P"], mm7[,"P"]))))
+points(P~time, data = mm6, type = "l", col = "red", lwd = 2, lty = 2)
+points(P~time, data = mm7, type = "l", col = "green", lwd = 2, lty = 3)
+
+plot(Iorg~time, data = mm5, type = "l", lwd = 2, ylim = c(range(c(mm5[,"Iorg"], mm6[,"Iorg"], mm7[,"Iorg"]))))
+points(Iorg~time, data = mm6, type = "l", col = "red", lwd = 2, lty = 2)
+points(Iorg~time, data = mm7, type = "l", col = "green", lwd = 2, lty = 3)
+
+plot(L~time, data = mm5, type = "l", lwd = 2, ylim = c(range(c(mm5[,"L"], mm6[,"L"], mm7[,"L"]))))
+points(L~time, data = mm6, type = "l", col = "red", lwd = 2, lty = 2)
+points(L~time, data = mm7, type = "l", col = "green", lwd = 2, lty = 3)
 
 # Plot the most complex model ----
 

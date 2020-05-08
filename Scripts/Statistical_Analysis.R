@@ -75,7 +75,7 @@ pbdata = pbdata %>%
 
 # Replace Earthworm in the RDA datafile
 
-RDAdata = RDAdata %>% rename(Earthworm_old = Earthworm) %>% 
+RDAdata = RDAdata %>% rename(Earthworm_old = Earthworm, AP_N_old = AP_N) %>% 
   left_join(pbdata %>% select(Plot, Year, WORM_N, AP_N)) %>%
   rename(Earthworm = WORM_N) %>%
   mutate(Year = as.factor(Year))
