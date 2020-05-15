@@ -349,12 +349,38 @@ data3 = data2 %>% select(-PARS, -YSTABLE, -Run2) %>% filter(time!=-1) %>% rename
   filter(Treatment %in% c("N", "W", "H", "HW")) %>% 
   select(-Expt)
 
-rm(data2)
-
 runID = data3 %>% select(-time, -Treatment) %>% gather(-Run, key = StateVar, value = Biomass) %>%
   mutate(Biomass = ifelse(Biomass < 0, 0,1)) %>%
   group_by(Run) %>%
   summarize(Total = sum(Biomass)) %>% filter(Total == 560) %>% select(Run)
+
+out0 = runID %>%
+  left_join(
+    data3
+  ) %>%
+  left_join(
+    errord %>% select(Run, Best)
+  ) %>%
+  filter(Best == "Yes") %>%
+  gather(-time, -Treatment, -Run, - Best, key = StateVar, value = Biomass) %>%
+  spread(key = Treatment, value = Biomass) %>% 
+  mutate(IE = (HW - H - W + N)/N) %>%
+  mutate(WE = (W - N)/N, HE = (H - N)/N) %>% 
+  select(time, Run, StateVar, IE, WE, HE) %>% 
+  filter(!(StateVar %in% c("W", "H"))) 
+
+png(paste0("modelresults_",Sys.Date(),"/interactioneffect_simple.png"), width = 5, height = 5, units = "in", res = 600)
+out0 %>% gather(-time, -Run, -StateVar, key = Effect, value = value) %>%
+  filter(time == 1395) %>%
+  mutate(value = 100*abs(value) + 1e-6) %>%
+  ggplot(aes(x = value, fill = Effect)) + geom_density(alpha = 0.7) + theme_classic() + 
+  scale_x_log10(name = "Effect (proportion of control)", labels = scientific) + 
+  scale_fill_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Herbivore", "Detritivore", "Interaction"), name = "Effect") +
+  theme(legend.position = c(0.3, 0.7),
+        legend.justification = c(1, 0),
+        legend.box = "horizontal")
+dev.off()
+
 
 out1 = runID %>%
   left_join(
@@ -417,17 +443,26 @@ variable_names <- c(
   "S" = "Soil organic matter"
 )
 
+scientific <- function(x){
+  ifelse(x==0, "0", parse(text=gsub("[+]", "", gsub("e", " %*% 10^", scales::scientific_format()(x)))))
+}
+
+png(paste0("modelresults_",Sys.Date(),"/interactioneffect.png"), width = 8, height = 5, units = "in", res = 600)
+out1 %>% filter(Best == "Yes") %>% select(-Best, -IEacc, -IEpred) %>% gather(-time, -Run, -StateVar, key = Effect, value = value) %>%
+  filter(time == 1395) %>%
+  mutate(value = 100*abs(value) + 1e-6) %>%
+  ggplot(aes(x = value, fill = Effect)) + geom_density(alpha = 0.7) + theme_classic() + 
+  facet_wrap(.~StateVar,labeller=labeller(StateVar = variable_names)) +
+  scale_x_log10(name = "Effect", labels = scientific) + 
+  scale_fill_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Grasshopper", "Earthworm", "Interaction"), name = "Effect") +
+  theme(legend.position = c(1, 0),
+        legend.justification = c(1, 0),
+        legend.box = "horizontal")
+dev.off()
+
 effectplot2 = out1 %>% select(-Best, -IEacc, -IEpred) %>% gather(-time, -Run, -StateVar, key = Effect, value = value) %>%
   mutate(value = 100*abs(value) + 1e-6) %>%
   ggplot(aes(x = value, fill = Effect)) + geom_density(alpha = 0.7) + theme_classic() + facet_wrap(.~StateVar, scale = "free",labeller=labeller(StateVar = variable_names)) + scale_x_log10(name = "Effect") + scale_fill_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Grasshopper", "Earthworm", "Interaction"), name = "Effect (%)")
-
-effectplot1 = out1 %>% filter(Best == "Yes") %>% select(-Best, -IEacc, -IEpred) %>% gather(-time, -Run, -StateVar, key = Effect, value = value) %>%
-  mutate(value = 100*abs(value) + 1e-6) %>%
-  ggplot(aes(x = value, fill = Effect)) + geom_density(alpha = 0.7) + theme_classic() + facet_wrap(.~StateVar, scale = "free",labeller=labeller(StateVar = variable_names)) + scale_x_log10(name = "Effect") + scale_fill_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Grasshopper", "Earthworm", "Interaction"), name = "Effect")
-
-png(paste0("modelresults_",Sys.Date(),"/interactioneffect.png"), width = 8, height = 5, units = "in", res = 600)
-effectplot1
-dev.off()
 
 png(paste0("modelresults_",Sys.Date(),"/interactioneffect2.png"), width = 8, height = 5, units = "in", res = 600)
 effectplot2
