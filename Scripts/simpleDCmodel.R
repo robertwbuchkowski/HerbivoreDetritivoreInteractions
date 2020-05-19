@@ -136,29 +136,30 @@ for(i in 1:10000){
   yint = test(params)$m4
   names(yint) = c("P", "Iorg", "L","H", "W")
   # yint = yint*c(0.05, 1, 0.05, 1, 0.05)
-  
-  mm1 = ode(y = yint[1:3], times = c(seq(1,1.9, 0.1),seq(2,(365*4), length = 10)), func = simpleDCmodel1, parms = params)
-  mm2 = ode(y = yint[c(1,2,3,5)], times = c(seq(1,1.9, 0.1),seq(2,(365*4), length = 10)), func = simpleDCmodel2, parms = params)
-  mm3 = ode(y = yint[1:4], times = c(seq(1,1.9, 0.1),seq(2,(365*4), length = 10)), func = simpleDCmodel3, parms = params)
-  mm4 = ode(y = yint, times = c(seq(1,1.9, 0.1),seq(2,(365*4), length = 10)), func = simpleDCmodel4, parms = params)
-  
-  mm5 = (mm4[,c(1:4)] - mm3[,c(1:4)] - mm2[,c(1:4)] + mm1[,c(1:4)])
-  mm5[,1] = mm4[,1]
-  mm5 = data.frame(mm5)
-  mm5[,"Effect"] = "IE"
-  
-  mm6 = (mm2[,c(1:4)] - mm1[,c(1:4)])
-  mm6[,1] = mm4[,1]
-  mm6 = data.frame(mm6)
-  mm6[,"Effect"] = "WE"
-  
-  
-  mm7 = (mm3[,c(1:4)] - mm1[,c(1:4)])
-  mm7[,1] = mm4[,1]
-  mm7 = data.frame(mm7)
-  mm7[,"Effect"] = "HE"
-  
-  simlist[[i]] = cbind(rbind(mm5, mm6, mm7), N = i)
+  if(F){
+    mm1 = ode(y = yint[1:3], times = c(seq(1,1.9, 0.1),seq(2,(365*4), length = 10)), func = simpleDCmodel1, parms = params)
+    mm2 = ode(y = yint[c(1,2,3,5)], times = c(seq(1,1.9, 0.1),seq(2,(365*4), length = 10)), func = simpleDCmodel2, parms = params)
+    mm3 = ode(y = yint[1:4], times = c(seq(1,1.9, 0.1),seq(2,(365*4), length = 10)), func = simpleDCmodel3, parms = params)
+    mm4 = ode(y = yint, times = c(seq(1,1.9, 0.1),seq(2,(365*4), length = 10)), func = simpleDCmodel4, parms = params)
+    
+    mm5 = (mm4[,c(1:4)] - mm3[,c(1:4)] - mm2[,c(1:4)] + mm1[,c(1:4)])
+    mm5[,1] = mm4[,1]
+    mm5 = data.frame(mm5)
+    mm5[,"Effect"] = "IE"
+    
+    mm6 = (mm2[,c(1:4)] - mm1[,c(1:4)])
+    mm6[,1] = mm4[,1]
+    mm6 = data.frame(mm6)
+    mm6[,"Effect"] = "WE"
+    
+    mm7 = (mm3[,c(1:4)] - mm1[,c(1:4)])
+    mm7[,1] = mm4[,1]
+    mm7 = data.frame(mm7)
+    mm7[,"Effect"] = "HE"
+    
+    simlist[[i]] = cbind(rbind(mm5, mm6, mm7), N = i)
+  }
+
   
   if(i %% 500 == 0){
     print(paste("Done", i, "in:"))
@@ -463,28 +464,28 @@ abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 dev.off()
 
 
-out5 = out4
-
-out5[,"IEm1"] = signif(abs(out5[,"IE"]/ out5[,"m1"]), digits = 6)
-
-out5 = out5[order(out5$IEm1),c("nvec", "IEm1")]
-dim(out5)
-
-tempt2 = tibble(nvec = rep("A", 30000),
-               IEm1 = rep(1, 30000))
-
-tempt2$nvec = out5$nvec
-tempt2$IEm1 = out5$IEm1
-
-tempt2 %>% arrange(IEm1) %>% group_by(nvec) %>%
-  mutate(cumsum = cumsum(IEm1)) %>% 
-  left_join(
-    tempt2 %>% group_by(nvec) %>% summarize(tot = sum(IEm1))
-  ) %>%
-  mutate(prop = cumsum/tot) %>%
-  select(nvec, IEm1, prop) %>%
-  distinct() %>%
-  ggplot(aes(x = IEm1, y = prop, color = nvec)) + geom_line() + theme_classic() + scale_x_log10()
+# out5 = out4
+# 
+# out5[,"IEm1"] = signif(abs(out5[,"IE"]/ out5[,"m1"]), digits = 6)
+# 
+# out5 = out5[order(out5$IEm1),c("nvec", "IEm1")]
+# dim(out5)
+# 
+# tempt2 = tibble(nvec = rep("A", 30000),
+#                IEm1 = rep(1, 30000))
+# 
+# tempt2$nvec = out5$nvec
+# tempt2$IEm1 = out5$IEm1
+# 
+# tempt2 %>% arrange(IEm1) %>% group_by(nvec) %>%
+#   mutate(cumsum = cumsum(IEm1)) %>% 
+#   left_join(
+#     tempt2 %>% group_by(nvec) %>% summarize(tot = sum(IEm1))
+#   ) %>%
+#   mutate(prop = cumsum/tot) %>%
+#   select(nvec, IEm1, prop) %>%
+#   distinct() %>%
+#   ggplot(aes(x = IEm1, y = prop, color = nvec)) + geom_line() + theme_classic() + scale_x_log10()
 
 # Simulate the model over time 
 
@@ -601,6 +602,12 @@ rm(listOfDataFrames,ftoload)
 
 # Analyze the data
 
+data2 %>% as_tibble() %>%
+  select(X, H, W) %>%
+  gather(-X, key = StateVar, value = B) %>%
+  group_by(X, StateVar) %>%
+  summarize(sd = sd(B, na.rm = T), mean = mean (B, na.rm = T), min = min(B, na.rm = T))
+
 library(tidyverse)
 
 data2a = data2 %>% as_tibble() %>% 
@@ -667,21 +674,31 @@ data.frame(StateVar = c("P", "L", "N", "S", "M"),
 # Put out the combined plot ----
 
 png("Plots/Bothmodel2.png", width = 8, height = 8, units = "in", res = 600)
-par(mfrow=c(2,2))
+
+par(oma=c(2,2,0,0))
+par(mfrow=c(2,2), mar = c(3,3,1,1))
 plot((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = outlist2, log = 'xy', col = ncol, pch = npch, cex = ncex,
-     xlab= "Linear Comination (log|x|)", ylab = "True combination (log|x|)", type = "n", main = "Simple: Donor controlled")
+     xlab= "", 
+     ylab = "", type = "n", main = "Simple: Donor controlled",
+     axes = F, ylim = c(1e-11, 1e36), xlim = c(1e-11, 1e36))
+axis(1, at = c(1e-11,1e-3,1e5,1e13, 1e21, 1e31), labels = expression(10^-11,10^-3,10^5,10^13, 10^21, 10^31))
+axis(2, at = c(1e-11,1e-3,1e5,1e13, 1e21, 1e31), labels = expression(10^-11,10^-3,10^5,10^13, 10^21, 10^31))
 abline(a = 0, b = 1, lty = 2, lwd = 2)
 abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
 abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
 abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
+arrows(1e13, 1e13, 1e21, 1e2, length = 0.1)
+text(1e21, 1e-1, "Interaction effect \n increases")
 points((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = outlist2, col = ncol, pch = npch, cex = ncex)
-legend("bottomright", legend = c("Plant", "Litter", "Inorganic N", "Soil", "Microbe"),
-       col = c("#009E73","#E69F00","#56B4E9", "#F0E442","#0072B2"), pch = 1:5)
 legend("topleft", legend = "A", bty = "n")
 
 plot((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = out4, log = 'xy', col = ncol, pch = npch, cex = ncex,
-     xlab= "Linear Comination (log|x|)", ylab = "True combination (log|x|)", type = "n", main = "Simple: Type I")
+     xlab= "", 
+     ylab = "", type = "n", main = "Simple: Type I",
+     axes = F, ylim = c(1e-11, 1e36), xlim = c(1e-11, 1e36))
+axis(1, at = c(1e-11,1e-3,1e5,1e13, 1e21, 1e31), labels = expression(10^-11,10^-3,10^5,10^13, 10^21, 10^31))
+axis(2, at = c(1e-11,1e-3,1e5,1e13, 1e21, 1e31), labels = expression(10^-11,10^-3,10^5,10^13, 10^21, 10^31))
 abline(a = 0, b = 1, lty = 2, lwd = 2)
 abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
 abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
@@ -691,7 +708,12 @@ points((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = out4, col = ncol, pch = npch
 legend("topleft", legend = "B", bty = "n")
 
 plot((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = data2c, log = 'xy', col = ncol, pch = npch, cex = ncex,
-     xlab= "Linear Comination (log|x|)", ylab = "True combination (log|x|)", type = "n", main = "Complex: Type II")
+     xlab= "", 
+     ylab = "", type = "n", main = "Complex: Type II",
+     axes = F, ylim = c(1e-11, 1e5), xlim = c(1e-11, 1e5))
+axis(1, at = c(1e-11,1e-3,1e5), labels = expression(10^-11,10^-3,10^5))
+axis(2, at = c(1e-11,1e-3,1e5), labels = expression(10^-11,10^-3,10^5))
+abline(a = 0, b = 1, lty = 2, lwd = 2)
 abline(a = 0, b = 1, lty = 2, lwd = 2)
 abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
 abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
@@ -700,10 +722,17 @@ abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 points((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = data2c, col = ncol, pch = npch, cex = ncex)
 legend("topleft", legend = "C", bty = "n")
 
+outfinal3 = read_rds("Data/TrueLinearComplex.rds")
+
 outfinal3$ncol = as.character(outfinal3$ncol)
 
 plot((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = outfinal3, log = 'xy', col = ncol, pch = npch, cex = ncex,
-     xlab= "Linear Comination (log|x|)", ylab = "True combination (log|x|)", type = "n", main = "Complex: 4-year treatment")
+     xlab= "", 
+     ylab = "", 
+     type = "n", main = "Complex: 4-year treatment",
+     axes = F, ylim = c(1e-11, 1e5), xlim = c(1e-11, 1e5))
+axis(1, at = c(1e-11,1e-3,1e5), labels = expression(10^-11,10^-3,10^5))
+axis(2, at = c(1e-11,1e-3,1e5), labels = expression(10^-11,10^-3,10^5))
 abline(a = 0, b = 1, lty = 2, lwd = 2)
 abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
 abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
@@ -711,4 +740,9 @@ abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 points((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = outfinal3, col = ncol, pch = npch, cex = ncex)
 legend("topleft", legend = "D", bty = "n")
+legend("bottomright", legend = c("Plant", "Litter", "Inorganic N", "Soil", "Microbe"),
+       col = c("#009E73","#E69F00","#56B4E9", "#F0E442","#0072B2"), pch = 1:5)
+
+mtext(text="Combined Effect (log|x|)",side=2,line=0,outer=TRUE,cex=1)
+mtext(text="Herbivore + Detritivore Effect (log|x|)",side=1,line=0,outer=TRUE,cex=1)
 dev.off()

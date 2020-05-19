@@ -41,11 +41,11 @@ plotcompare <- function(OUTPUTALL, typevar){
                 ifelse(typevar == "Direct"| typevar == "Direct2", "Direct effect model (One plant species)", "Model (Two plant species)"))
   
   NNNNN <- c(
-    "H" = "Herbivore" ,
+    "H" = "Herbivore (Grasshopper)" ,
     "M" = "Microbial",
     "N" = "Inorganic",
     "P" = "Plant",
-    "W" = "Detritivore",
+    "W" = "Detritivore (Earthworm)",
     "L" = "Litter"
   )
   
@@ -54,7 +54,9 @@ plotcompare <- function(OUTPUTALL, typevar){
     geom_blank(data = maxes %>% mutate(Model = BMmax, Biomass = BMmax, Treatment = "N") %>% bind_rows(maxes %>%  mutate(Model = 0, Biomass = 0, Treatment = "N"))) + xlab(XLAB)  +
     theme(legend.position = c(1, 0),
           legend.justification = c(1, 0),
-          legend.box = "horizontal")
+          legend.box = "horizontal") + 
+    xlab("Model Biomass") + 
+    ylab("Field Biomass")
   
   return(pppppp)
 }

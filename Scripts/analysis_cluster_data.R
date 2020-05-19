@@ -318,7 +318,7 @@ parameters = c("B", "D", "E[a]",
                "K[NP]","K[slope]", "K[SM]^0",
                "l", "q",
                "a[M]", "a[H]", "a[WL]", "a[WM]", "a[WS]",
-               "tau[H]", "tau[M]", "tau[P]","tau[W]", 
+               "tau[H]", "tau[M]", "alpha","tau[W]", 
                "V[HP]", "V[int]",
                "V[LM]^0", "V[LW]", "V[NP]",
                "V[slope]","V[SM]^0", "V[SW]")
@@ -369,16 +369,30 @@ out0 = runID %>%
   select(time, Run, StateVar, IE, WE, HE) %>% 
   filter(!(StateVar %in% c("W", "H"))) 
 
+scientific <- function(x){
+  ifelse(x==0, "0", parse(text=gsub("[+]", "", gsub("e", " %*% 10^", scales::scientific_format()(x)))))
+}
+
 png(paste0("modelresults_",Sys.Date(),"/interactioneffect_simple.png"), width = 5, height = 5, units = "in", res = 600)
+
+gt = out0 %>% gather(-time, -Run, -StateVar, key = Effect, value = value) %>%
+  filter(time == 1395) %>%
+  mutate(value = 100*abs(value) + 1e-6) %>% group_by(Effect) %>% summarise(X = median(value)) %>%
+  mutate(Y = c(0.75, 0.40, 0.45)) %>%
+  mutate(t = signif(X, 2))
+
 out0 %>% gather(-time, -Run, -StateVar, key = Effect, value = value) %>%
   filter(time == 1395) %>%
   mutate(value = 100*abs(value) + 1e-6) %>%
-  ggplot(aes(x = value, fill = Effect)) + geom_density(alpha = 0.7) + theme_classic() + 
+  ggplot(aes(x = value)) +
+  geom_text(aes(x = X, y = Y, label = t, col = Effect),data = gt) + 
+  geom_density(aes(fill = Effect),alpha = 0.7) + theme_classic() + 
   scale_x_log10(name = "Effect (proportion of control)", labels = scientific) + 
   scale_fill_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Herbivore", "Detritivore", "Interaction"), name = "Effect") +
+  scale_color_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Herbivore", "Detritivore", "Interaction"), name = "Effect") +
   theme(legend.position = c(0.3, 0.7),
         legend.justification = c(1, 0),
-        legend.box = "horizontal")
+        legend.box = "horizontal") + ylab("Density")
 dev.off()
 
 
@@ -443,10 +457,6 @@ variable_names <- c(
   "S" = "Soil organic matter"
 )
 
-scientific <- function(x){
-  ifelse(x==0, "0", parse(text=gsub("[+]", "", gsub("e", " %*% 10^", scales::scientific_format()(x)))))
-}
-
 png(paste0("modelresults_",Sys.Date(),"/interactioneffect.png"), width = 8, height = 5, units = "in", res = 600)
 out1 %>% filter(Best == "Yes") %>% select(-Best, -IEacc, -IEpred) %>% gather(-time, -Run, -StateVar, key = Effect, value = value) %>%
   filter(time == 1395) %>%
@@ -477,3 +487,43 @@ test1 = out1 %>% mutate(IW = -abs(IE) + abs(WE), IH = -abs(IE) + abs(HE)) %>%
   mutate(IW = IW > 0, IH = IH >0)
 
 table(test1$IW,test1$IH)
+
+# Test if the interaction effects scale with H and W population sizes ----
+
+sca1 = runID %>%
+  left_join(
+    data3
+  ) %>%
+  left_join(
+    errord %>% select(Run, Best)
+  ) %>%
+  filter(Best == "Yes") %>%
+  gather(-time, -Treatment, -Run, - Best, key = StateVar, value = Biomass) %>%
+  spread(key = Treatment, value = Biomass) %>% 
+  mutate(IE = (HW - H - W + N)/N) %>%
+  mutate(WE = (W - N)/N, HE = (H - N)/N) %>%
+  filter(time == 1395)
+
+sca2 = sca1 %>%
+  filter(!StateVar %in% c("H", "W")) %>%
+  select(Run, StateVar, IE, WE, HE) %>%
+  left_join(
+    sca1 %>%
+      filter(StateVar %in% c("H", "W")) %>%
+      select(Run, StateVar, HW) %>%
+      spread(key = StateVar, value = HW) %>%
+      rename(Hn = H, Wn = W)
+  )
+
+png(paste0("modelresults_",Sys.Date(),"/","HWpops_vs_IE", Sys.Date(),".png"), width=8,
+    height=10, units="in", res=300)
+
+ggpubr::ggarrange(
+  sca2 %>%
+    ggplot(aes(x = Hn, y = IE)) + geom_point() + facet_wrap(.~StateVar, scales = "free") + theme_classic() + stat_smooth(),
+  
+  sca2 %>%
+    ggplot(aes(x = Wn, y = IE)) + geom_point() + facet_wrap(.~StateVar, scales = "free") + theme_classic() + stat_smooth(),
+  ncol = 1, nrow = 2
+)
+dev.off()

@@ -293,14 +293,21 @@ key_label = c(NTm="Lab N Mineralization",
               PlantBiomass= "Plant Biomass",
               SIR="Microbial Biomass")
 
-bmdata2 = bmdata %>% select(BiomassCtrl, PlantBiomass, SIR, NTs, NTm, Year) %>% gather(-BiomassCtrl, -Year, key=Key, value=Measure)
+bmdata2 = bmdata %>% select(BiomassCtrl, PlantBiomass, SIR, NTs, NTm, Year) %>% gather(-BiomassCtrl, -Year, key=Key, value=Measure) %>%
+  mutate(Year = ifelse(Year == "17", "2017", "2018"))
 
 ann_text <- data.frame(Year = c(0.75, 0.75, 0.75, 2.1, 2.1), Measure = c(0.6,1.5, 60, 1.5, 1.45),
                        Key = as.factor(c("NTm", "NTs", "PlantBiomass", "SIR", "SIR")),
                        BiomassCtrl= rep("No", 5))
 
 jpeg(paste0("Stats_plots_from_",Sys.Date(),"/BiomassCtrl_Year_",Sys.Date(), ".jpeg"), units="in", width=7, height=7, res=600)
-ggplot(bmdata2, aes(x=Year, y=Measure, color=BiomassCtrl)) + geom_boxplot(outlier.shape = NA) + geom_jitter() + theme_classic() + facet_wrap("Key", scale="free_y", labeller = labeller(Key=key_label)) + geom_text(data = ann_text,label = c("Year*", "Year***", "Year*", "Year***", "BiomassCtrl*"), color="black")
+ggplot(bmdata2, aes(x=Year, y=Measure, color=BiomassCtrl)) + 
+  geom_boxplot(outlier.shape = NA) + 
+  geom_jitter() + 
+  theme_classic() + 
+  facet_wrap("Key", scale="free_y", labeller = labeller(Key=key_label)) + 
+  geom_text(data = ann_text,label = c("Year*", "Year***", "Year*", "Year***", "Biomass Ctrl*"), color="black") +
+  scale_color_discrete(name = "Biomass Control")
 dev.off()
   
 # .. 1.2 Plant Community Composition Analysis: RDA -------------------------------
@@ -335,12 +342,23 @@ dev.off()
 jpeg(paste0("Stats_plots_from_",Sys.Date(),"/RDA_Expt_",Sys.Date(), ".jpeg"), units="in", width=7, height=7, res=600)
 plot(rda1, type="n", xlab=paste0("RDA1 (", prop_explained[1],"%)"), ylab=paste0("RDA2 (", prop_explained[2],"%)"))
 points(rda1, display= "sites", choices=c(1,2), scaling=2, cex=0.5, col="grey",pch=ifelse(RDAdata$Year=="17", 19, 17))
-ordiellipse(rda1, groups=RDAdata$Year,col= c("black", "grey40"), lwd=3, label=F)
-text(rda1, display="bp", choices=c(1,2), scaling=2, col=c("blue","blue","orange","blue"), select=c(T,T, F,T, T))
-text(rda1, display= "sp", choices=c(1,2), scaling=2, cex=0.5, col="red")
-legend("bottomleft", legend=bquote(italic(R)^2 == .(format(R2, digits = 3))), bty="n")
+ordiellipse(rda1, groups=RDAdata$Year,col= alpha(c("black", "grey40"), 0.7), lwd=3, label=F)
 
-legend("bottomright", legend=c("`17", "`18"), col=c("black", "grey40"), bty="n", pch=c(19,17))
+text(rda1,labels = c("                              Earthworm", 
+                     "     Grasshopper", 
+                     "Year",
+                     "Plant Biomass", 
+                     "                       Biomass Control"), 
+     display="bp", choices=c(1,2), scaling=2, col=c("blue","blue","orange","blue"), select=c(T,T, F,T, T), 
+     cex = 1)
+
+text(rda1, display= "sp", choices=c(1,2), scaling=2, cex=0.5, col="red")
+legend("bottomleft", legend=bquote(italic(R)^2 == .(format(R2, digits = 2))), bty="n")
+
+legend("bottomright", legend=c("2017", "2018"), col=alpha(c("black", "grey40"), 0.7), bty="n", pch=c(19,17))
+text(-0.8,1.2, "Significant", col = "orange")
+text(-0.8,1.1, "Not significant", col = "blue")
+text(-0.3,0.55, "Year", col = "orange")
 
 par(new=TRUE) # overlay existing plot
 par(mar=c(0,0,0,0)) # strip out the margins for the inset plot
