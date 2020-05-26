@@ -574,31 +574,38 @@ points(L~time, data = mm7, type = "l", col = "green", lwd = 2, lty = 3)
 
 # Load in the cluster data
 
-dirtoload = "Model_eqm_reps/"
-
-ftoload = list.files(dirtoload)
-
-listOfDataFrames <- vector(mode = "list", length = length(ftoload))
-
-for(ii in 1:length(ftoload)){
-  listOfDataFrames[[ii]] <- read.csv(paste0(dirtoload,ftoload[ii]))
+if(F){
+  dirtoload = "Model_eqm_reps/"
+  
+  ftoload = list.files(dirtoload)
+  
+  listOfDataFrames <- vector(mode = "list", length = length(ftoload))
+  
+  for(ii in 1:length(ftoload)){
+    listOfDataFrames[[ii]] <- read.csv(paste0(dirtoload,ftoload[ii]))
+  }
+  
+  data2 <- do.call("rbind", listOfDataFrames)
+  
+  dirtoload = "Model_param_reps/"
+  
+  ftoload = list.files(dirtoload)
+  
+  listOfDataFrames <- vector(mode = "list", length = length(ftoload))
+  
+  for(ii in 1:length(ftoload)){
+    listOfDataFrames[[ii]] <- read.csv(paste0(dirtoload,ftoload[ii]))
+  }
+  
+  param2 <- do.call("rbind", listOfDataFrames)
+  
+  rm(listOfDataFrames,ftoload)
+  
+  write_rds(data2, "Data/complex_model_10000_eqm.rds")
+  
 }
 
-data2 <- do.call("rbind", listOfDataFrames)
-
-dirtoload = "Model_param_reps/"
-
-ftoload = list.files(dirtoload)
-
-listOfDataFrames <- vector(mode = "list", length = length(ftoload))
-
-for(ii in 1:length(ftoload)){
-  listOfDataFrames[[ii]] <- read.csv(paste0(dirtoload,ftoload[ii]))
-}
-
-param2 <- do.call("rbind", listOfDataFrames)
-
-rm(listOfDataFrames,ftoload)
+data2 = read_rds(data2, "complex_model_10000_eqm.rds")
 
 # Analyze the data
 
