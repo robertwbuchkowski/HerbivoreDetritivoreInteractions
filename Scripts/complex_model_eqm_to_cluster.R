@@ -4,7 +4,7 @@
 require(deSolve) # version 1.21
 
 # How many replicates do you want to run in this code file?
-NTOT = 50
+NTOT = 3
 
 # Load in the required functions ----
 # A temperature function that takes day of the year (doy) and returns the temperature in Kelvin
@@ -112,15 +112,18 @@ singlerun <- function(idx){
     paramscur[i] = rlnorm(1, meanlog = log(params[i]), sdlog = 0.3536)
   }
   
+  paramscur[25] = params[25] # Replace the original value of Kappa
+  
   paramscur2 = paramscur
   
   yts = 2000 # Years to simulate
+  ytsNE = 4 # Years to sumulate for non-equilibrium
   
   # Simulate each treatment to equilibrium and judge it stable if the change is less than 1e-4 for any state variable
   
   stablerunHW = ode(y=yint2,times = seq(1, 365*yts,1), func=singlemodel, parms=paramscur2)
   if(dim(stablerunHW)[1] == 365*yts){
-    ystableHW = stablerunHW[(365*yts),-1]
+    ystableHWsave2 = ystableHWsave = ystableHW = stablerunHW[(365*yts),-1]
     
     HWs = ifelse(max(abs(stablerunHW[(365*yts),-1] - stablerunHW[(365*(yts-1)),-1])) > 1e-4, 0,1)
     
@@ -130,9 +133,13 @@ singlerun <- function(idx){
     ystableHW["Stable"] = 2
   }
    
+  stablerunHW = ode(y=ystableHWsave,times = seq(1, 365*ytsNE,1), func=singlemodel, parms=paramscur2)
+  
+  
   # Each step after the first model with both animals sets their parameters or and popualtion to zero before running, then resets to default before the next run. E.g. ->
   paramscur2[c("Vlw", "Vsw")] = 0
   yint2["W"] = 0
+  ystableHWsave["W"] = 0
   
   stablerunH = ode(y=yint2,times = seq(1, 365*yts,1), func=singlemodel, parms=paramscur2)
   if(dim(stablerunH)[1] == 365*yts){
@@ -146,11 +153,15 @@ singlerun <- function(idx){
     ystableH["Stable"] = 2
   } 
   
+  stablerunH = ode(y=ystableHWsave,times = seq(1, 365*ytsNE,1), func=singlemodel, parms=paramscur2)
+  
   yint2 = yint
+  ystableHWsave = ystableHWsave2
   paramscur2 = paramscur
   
   paramscur2[c("Vhp")] = 0
   yint2["H"] = 0
+  ystableHWsave["H"] = 0
   
   stablerunW = ode(y=yint2,times = seq(1, 365*yts,1), func=singlemodel, parms=paramscur2)
   if(dim(stablerunW)[1] == 365*yts){
@@ -164,12 +175,15 @@ singlerun <- function(idx){
     ystableW["Stable"] = 2
   } 
     
+  stablerunW = ode(y=ystableHWsave,times = seq(1, 365*ytsNE,1), func=singlemodel, parms=paramscur2)
+  
   paramscur2[c("Vlw", "Vsw")] = 0
   yint2["W"] = 0
+  ystableHWsave["W"] = 0
   
   stablerunN = ode(y=yint2,times = seq(1, 365*yts,1), func=singlemodel, parms=paramscur2)
   if(dim(stablerunN)[1] == 365*yts){
-    ystableN = stablerunN[(365*yts),-1]
+    ystableNsave = ystableN = stablerunN[(365*yts),-1]
     
     Ns = ifelse(max(abs(stablerunN[(365*yts),-1] - stablerunN[(365*(yts-1)),-1])) > 1e-4, 0,1)
     
@@ -180,7 +194,14 @@ singlerun <- function(idx){
     ystableN["Stable"] = 2
   }
   
-  out3 = list(cbind(rbind(ystableHW,ystableH,ystableW,ystableN), ID = rep(ID, 4)), c(paramscur, ID = ID))
+  stablerunN = ode(y=ystableHWsave,times = seq(1, 365*ytsNE,1), func=singlemodel, parms=paramscur2)
+  
+  # Done the four year runs
+  
+  out3 = list(
+    cbind(rbind(ystableHW,ystableH,ystableW,ystableN), ID = rep(ID, 4)), 
+              c(paramscur, ID = ID),
+              cbind(rbind(stablerunHW[365*ytsNE,-1],stablerunH[365*ytsNE,-1],stablerunW[365*ytsNE,-1],stablerunN[365*ytsNE,-1]), ID = rep(ID, 4), Treatment = c("HW", "H", "W", "N")))
   
   return(out3)
   
@@ -188,21 +209,25 @@ singlerun <- function(idx){
 
 repseq = seq(1, NTOT, 1)
 
-# Run the models: This takes a long time (weeks) on a single core!!
+# Run the models: This takes a long time (days) on a single core!!
 out1 = lapply(repseq, FUN=singlerun)
 
 # Clean up the data and output
 out2 = vector(mode = "list", length = NTOT)
 out3 = vector(mode = "list", length = NTOT)
+out4 = vector(mode = "list", length = NTOT)
 
 for(jj in 1:NTOT){
   out2[[jj]] = out1[[jj]][[1]]
   
   out3[[jj]] = out1[[jj]][[2]]
+  
+  out4[[jj]] = out1[[jj]][[3]]
 }
 
 outf2 <- do.call("rbind", out2)
 outf3 <- do.call("rbind", out3)
+outf4 <- do.call("rbind", out4)
 
 fname = paste0(round(runif(1), 7)*10000000,round(runif(1), 7)*10000000)
 
@@ -210,7 +235,10 @@ fname2 = paste0("/gpfs/loomis/home.grace/fas/schmitz/rwb45/Model_eqm_reps/model_
 
 fname3 = paste0("/gpfs/loomis/home.grace/fas/schmitz/rwb45/Model_param_reps/model_", fname, "_param.csv")
 
+fname4 = paste0("/gpfs/loomis/home.grace/fas/schmitz/rwb45/Model_noneqm_reps/model_", fname, "_noneqm.csv")
+
 write.csv(outf2, fname2, row.names = T)
 write.csv(outf3, fname3, row.names = F)
+write.csv(outf4, fname4, row.names = F)
 
 # The compiled version of the data are saved as complex_model_10000_eqm.rds

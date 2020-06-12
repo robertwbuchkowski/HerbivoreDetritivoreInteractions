@@ -166,6 +166,8 @@ singlerun <- function(idx){
       paramscur[i] = rlnorm(1, meanlog = log(params[i]), sdlog = 0.3536)
     }
     
+    paramscur[25] = params[25] # Replace the original value of Kappa
+    
     yts = 2000
     
     stablerun = ode(y=ystable,times = seq(1, 365*yts,1), func=singlemodel, parms=paramscur)
