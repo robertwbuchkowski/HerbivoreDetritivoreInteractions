@@ -5,13 +5,14 @@ require(tidyverse)
 verbose = F
 loadcsv = F
 
-# Load parameter vector and data -----
+# Load in the data from field experiments -----
 
 datatomodel2 = read_csv("Data/datatomodel2.csv")
 
 # Load (Cluster) data -----
 
-if(loadcsv){
+if(loadcsv){ # Only important if you are loading in data from the raw outputs of "complex_model_non-eqm_to_cluster.R"
+  
   dirtoload = "Model_parameter_reps/"
   
   ftoload = list.files(dirtoload)
@@ -49,6 +50,7 @@ if(loadcsv){
 # The following .rds file was created by using the function "rbind" to join individual model outputs
 data2 <- readRDS("Data/fullmodeloutput_2020-04-07.rds")
 
+# Baseline parameter values, repeated for convenience
 params<- c(Vlm_mod = 8e-6,
            Vsm_mod = 4e-06,
            Klm_mod = 0.143,
@@ -106,6 +108,7 @@ data3 <- data2 %>% select(-PARS, -YSTABLE, -Run2) %>% filter(time!=-1) %>% renam
 # calculate median absolute deviation (instead of standard deviation) for unique model runs
 # based on van der Vaart et al. 2015
 
+# Decide whether to use experiment data, extra field data (i.e. 1-m^2 plots) or both. I use both in the manuscript
 useexptdata = T
 useextradata = T
 
@@ -144,8 +147,8 @@ datatomodel3 = datatomodel2 %>%
   filter(time != 114)
 
   
-(Nobs = length(unique(data4$Run)))
-(cut = (50/Nobs))
+(Nobs = length(unique(data4$Run))) # Number of runs
+(cut = (50/Nobs)) # Cut off to get 50 best models
 
 errord = datatomodel3 %>% left_join(data4) %>%
   filter(!is.na(Model)) %>% # remove any cases without simulation
@@ -154,10 +157,12 @@ errord = datatomodel3 %>% left_join(data4) %>%
   summarize(fit = sqrt(sum(((Model-mBio)/Msd)^2))) %>% # function for error ==> minimum is better
   mutate(Best = ifelse(fit < quantile(fit, cut), "Yes", "No"))
 
-table(errord %>% select(Best))
+table(errord %>% select(Best)) # Confirm that there are only 50 Best runs
 
-# Save ID of selected Runs 
-# errord %>% filter(Best == "Yes") %>% write_csv(paste0("Data/selected_runs_", Sys.Date(),".csv"))
+# Save ID of selected Runs if you want
+if(F){
+  errord %>% filter(Best == "Yes") %>% write_csv(paste0("Data/selected_runs_", Sys.Date(),".csv"))
+}
 
 # calculate R2 by treatment using the average model runs of best models
 
@@ -199,9 +204,10 @@ rm(data4)
 
 # Plot results of selection -----------------------------------------------
 
-#create directory for results
-dir.create(paste0("modelresults_",Sys.Date()))
+#create directory for plots if necessary that sets a specific date
+if(!dir.exists(paste0("modelresults_",Sys.Date()))){dir.create(paste0("modelresults_",Sys.Date()))}
 
+# Plot the comparison between model and the empirical data
 parplot1 = data5 %>% 
   group_by(Treatment, time, StateVar) %>%
   summarize(
@@ -260,7 +266,6 @@ dev.off()
 rm(parplot1, parplot2)
 
 # Look at state variable distribution for selected runs
-
 statevardist = data5 %>% filter(time ==1395) %>%
   ggplot(aes(x=Model, fill = Treatment)) + 
   geom_histogram() + facet_wrap(.~StateVar, scales="free",labeller=labeller(StateVar = variable_names)) + theme_classic() +
@@ -282,7 +287,6 @@ dev.off()
 rm(data5)
 
 # Look at parameter matches
-
 parVT = data2 %>% select(PARS, Run) %>% 
   mutate(NPAR = rep(c(names(params), rep("REMOVE", 127)), 
                     length(unique(data2$Run)))) %>%
@@ -340,6 +344,9 @@ rm(par_plot, parVT)
 
 # Calculate distribution of feedback size ----
 
+# The following analysis produces the complex model data used in the simple model script to produce a comparison with the simple model. It also calculates the interaction effect size relative to the herbivore effect size and detritvore effect size 
+
+# Clean up the data
 data3 = data2 %>% select(-PARS, -YSTABLE, -Run2) %>% filter(time!=-1) %>% rename(TreatmentN = Treatment) %>%
   left_join(
     data.frame(TreatmentN = seq(0,7,1),
@@ -373,6 +380,7 @@ scientific <- function(x){
   ifelse(x==0, "0", parse(text=gsub("[+]", "", gsub("e", " %*% 10^", scales::scientific_format()(x)))))
 }
 
+# Plot the interaction effect for selected variables
 png(paste0("modelresults_",Sys.Date(),"/interactioneffect_simple.png"), width = 5, height = 5, units = "in", res = 600)
 
 gt = out0 %>% gather(-time, -Run, -StateVar, key = Effect, value = value) %>%
@@ -431,19 +439,8 @@ out4 = out2 %>% filter(Best == "Yes")
 
 out3 = out3 %>% bind_rows(out4) %>% distinct()
 
+# This is the data that is used in the simple model script to plot the comparison
 write_rds(out3, "Data/TrueLinearComplex.rds")
-
-png("Plots/simmodel.png", width = 8, height = 8, units = "in", res = 600)
-plot((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = out3, log = 'xy', col = ncol, pch = npch, cex = ncex,
-     xlab= "Linear Comination (log|x|)", ylab = "True combination (log|x|)", type = "n", main = "Complex: 4-year treatment")
-abline(a = 0, b = 1, lty = 2, lwd = 2)
-abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
-abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
-abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-points((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = out3, col = ncol, pch = npch, cex = ncex)
-legend("topleft", legend = "D", bty = "n")
-dev.off()
 
 rm(data3)
 
@@ -457,6 +454,9 @@ variable_names <- c(
   "S" = "Soil organic matter"
 )
 
+# Plot the full interaction effects available the grasshopper and earthworm effects
+
+# Plot for the best fitting parameter sets only
 png(paste0("modelresults_",Sys.Date(),"/interactioneffect.png"), width = 8, height = 5, units = "in", res = 600)
 out1 %>% filter(Best == "Yes") %>% select(-Best, -IEacc, -IEpred) %>% gather(-time, -Run, -StateVar, key = Effect, value = value) %>%
   filter(time == 1395) %>%
@@ -470,6 +470,7 @@ out1 %>% filter(Best == "Yes") %>% select(-Best, -IEacc, -IEpred) %>% gather(-ti
         legend.box = "horizontal")
 dev.off()
 
+# Plot for all parameter sets
 effectplot2 = out1 %>% select(-Best, -IEacc, -IEpred) %>% gather(-time, -Run, -StateVar, key = Effect, value = value) %>%
   mutate(value = 100*abs(value) + 1e-6) %>%
   ggplot(aes(x = value, fill = Effect)) + geom_density(alpha = 0.7) + theme_classic() + facet_wrap(.~StateVar, scale = "free",labeller=labeller(StateVar = variable_names)) + scale_x_log10(name = "Effect") + scale_fill_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Grasshopper", "Earthworm", "Interaction"), name = "Effect (%)")
@@ -478,6 +479,7 @@ png(paste0("modelresults_",Sys.Date(),"/interactioneffect2.png"), width = 8, hei
 effectplot2
 dev.off()
   
+# Test whether interaction effect is always smaller than the individual effects of herbivores and detritivores
 test1 = out1 %>% filter(Best == "Yes") %>% mutate(IW = -abs(IE) + abs(WE), IH = -abs(IE) + abs(HE)) %>%
   mutate(IW = IW > 0, IH = IH >0)
 

@@ -1,6 +1,10 @@
-# Analysis of simple DC model ----
+# Analysis of the simple model and convenience code for plotting the results of the complex model in the same format. 
 
-library(FME)
+#The complex model output are available in the data provided, but were run separately using other scripts on a cluster.
+
+library(FME) # version 1.3.5
+
+# Analysis of simple DC model ----
 
 params = c(Vpn = 1,
            tp = 1,
@@ -16,6 +20,12 @@ params = c(Vpn = 1,
            eh = 0.8,
            ew = 0.5)
 
+# A function that calculates the equilibrium of the simple model give input parameters.
+
+# m1 = no animals
+# m2 = Detritivores
+# m3 = Herbivores
+# m4 = Herbivores and detritivores
 
 test <-function(parms){
   with(as.list(c(parms)),{
@@ -44,6 +54,7 @@ test <-function(parms){
                               (tw*(k*q*tp + l*q*tp + k*q*Vhp + l*q*Vhp + l*tp*Vpn + eh*l*Vhp*Vpn + q*tp*Vwl - ew*q*tp*Vwl + q*Vhp*Vwl - ew*q*Vhp*Vwl)))
       )
     
+    # Set the best fitting criteria based on reasonable relationships for an old-field..NOT FIT TO ACTUAL DATA!
     if(all(c(out[out$nvec == "N",-1] < out[out$nvec == "P",-1],
           out[out$nvec == "N",-1] < out[out$nvec == "L",-1],
           out[out$nvec == "H",-1] < 100*out[out$nvec == "P",-1],
@@ -63,9 +74,12 @@ test <-function(parms){
   
 }
 
+# Generate lists to save the data
 outlist <- vector(mode = "list", length = 10000)
 paramlist <- vector(mode = "list", length = 10000)
 simlist <- vector(mode = "list", length = 10000)
+
+# Create dynamic models 1-4 (as above) to simulate the non-equilibrium dynamics
 
 simpleDCmodel1 <- function(t,y, pars){
   with(as.list(c(pars,y)),{
@@ -111,8 +125,9 @@ simpleDCmodel4 <- function(t,y, pars){
   })
 }
 
-t1 = Sys.time()
 
+# Run 10,000 random parameter sets
+t1 = Sys.time()
 for(i in 1:10000){
   
   params = c(Vpn = rlnorm(1,meanlog = 1, sdlog = 10),
@@ -167,16 +182,20 @@ for(i in 1:10000){
     }
 }
 
+# Bind the parameter sets
 outlist2 = do.call("rbind", outlist)
 
+# Delete animal pools
 outlist2 = outlist2[!(outlist2$nvec %in% c("H", "W")),]
 
-outlist2[,"WE"] = (outlist2$m2 - outlist2$m1)
-outlist2[,"HE"] = (outlist2$m3 - outlist2$m1)
-outlist2[,"IE"] = (outlist2$m4 - outlist2$m3 - outlist2$m2 + outlist2$m1)
-outlist2[,"IEpred"] = outlist2[,"WE"] + outlist2[,"HE"]
-outlist2[,"IEacc"] = outlist2$m4 - outlist2$m1
+# Calculate effects
+outlist2[,"WE"] = (outlist2$m2 - outlist2$m1) # Detritivore effect
+outlist2[,"HE"] = (outlist2$m3 - outlist2$m1) # Herbivore effect
+outlist2[,"IE"] = (outlist2$m4 - outlist2$m3 - outlist2$m2 + outlist2$m1) # Interaction effect
+outlist2[,"IEpred"] = outlist2[,"WE"] + outlist2[,"HE"] # Linear combination of herbivore and detritivore effects
+outlist2[,"IEacc"] = outlist2$m4 - outlist2$m1 # Combined effect
 
+# Plotting preparation
 outlist2[,"ncol"] = ifelse(outlist2$nvec == "P", "#009E73",
                            ifelse(outlist2$nvec == "L", "#E69F00",
                                   ifelse(outlist2$nvec == "N", "#56B4E9",
@@ -186,12 +205,6 @@ outlist2[,"npch"] = ifelse(outlist2$nvec == "P", 1,
                            ifelse(outlist2$nvec == "L", 2,
                                   ifelse(outlist2$nvec == "N", 3,
                                          4)))
-
-# outlist2 = outlist2[outlist2$WE !=0 & outlist2$HE !=0,]
-
-# outlist2[,"Ratio"] = outlist2$IE/outlist2$WE
-
-# View(outlist2[outlist2$Ratio > 10,])
 
 outlist2[,"ncex"] = ifelse(outlist2$Best == 1, 1, 0.5)
 
@@ -215,7 +228,7 @@ abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 dev.off()
 
-# Create plot over time
+# Create plot of simulations over time
 
 simlist = do.call("rbind", simlist)
 
@@ -251,10 +264,17 @@ tempt %>% arrange(IEm1) %>% group_by(nvec) %>%
 
 # Analysis of simple LV model ----
 
+# A function that runs the simple model with Lotka-Volterra functional responses
+
+# m1 = no animals
+# m2 = Detritivores
+# m3 = Herbivores
+# m4 = Herbivores and detritivores
+
 test2 <- function(Ni){
   k = 1 
   
-  while(k == 1){
+  while(k == 1){ # Draw parameters until a stable version, as judged by the principle eigenvalue of the Jacobian matrix, is found
     
     params = c(Vpn = rlnorm(1,meanlog = 1, sdlog = 10),
                tp = rlnorm(1,meanlog = 1, sdlog = 10),
@@ -412,8 +432,10 @@ test2 <- function(Ni){
   return(list(output, c(params, N = Ni)))
 }
 
+# Run the model
 out2 = lapply(seq(1,10000,1), FUN = test2)
 
+# Reorganize the data
 out3 = vector(mode = "list", length = 10000)
 
 for(j in 1:10000){
@@ -424,13 +446,15 @@ out4 = do.call("rbind", out3)
 
 out4 = out4[!(out4$nvec %in% c("H", "W", "rmax")),]
 
-out4[,"WE"] = (out4$m2 - out4$m1)
-out4[,"HE"] = (out4$m3 - out4$m1)
-out4[,"IE"] = (out4$m4 - out4$m3 - out4$m2 + out4$m1)
-out4[,"IEpred"] = out4[,"WE"] + out4[,"HE"]
-out4[,"IEacc"] = out4$m4 - out4$m1
+# Calculate effects
+out4[,"WE"] = (out4$m2 - out4$m1) # Detritivore effect
+out4[,"HE"] = (out4$m3 - out4$m1) # Herbivore effect
+out4[,"IE"] = (out4$m4 - out4$m3 - out4$m2 + out4$m1) # Interaction effect
+out4[,"IEpred"] = out4[,"WE"] + out4[,"HE"] # Linear combination of herbivore and detritivore effects
+out4[,"IEacc"] = out4$m4 - out4$m1 # Combined effect
 
 
+# Plotting preparation
 out4[,"ncol"] = ifelse(out4$nvec == "P", "#009E73",
                            ifelse(out4$nvec == "L", "#E69F00",
                                   ifelse(out4$nvec == "N", "#56B4E9",
@@ -463,31 +487,7 @@ abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 dev.off()
 
-
-# out5 = out4
-# 
-# out5[,"IEm1"] = signif(abs(out5[,"IE"]/ out5[,"m1"]), digits = 6)
-# 
-# out5 = out5[order(out5$IEm1),c("nvec", "IEm1")]
-# dim(out5)
-# 
-# tempt2 = tibble(nvec = rep("A", 30000),
-#                IEm1 = rep(1, 30000))
-# 
-# tempt2$nvec = out5$nvec
-# tempt2$IEm1 = out5$IEm1
-# 
-# tempt2 %>% arrange(IEm1) %>% group_by(nvec) %>%
-#   mutate(cumsum = cumsum(IEm1)) %>% 
-#   left_join(
-#     tempt2 %>% group_by(nvec) %>% summarize(tot = sum(IEm1))
-#   ) %>%
-#   mutate(prop = cumsum/tot) %>%
-#   select(nvec, IEm1, prop) %>%
-#   distinct() %>%
-#   ggplot(aes(x = IEm1, y = prop, color = nvec)) + geom_line() + theme_classic() + scale_x_log10()
-
-# Simulate the model over time 
+# Simulate the Lotka-Volterra simple model over time 
 
 simpleLVmodel1 <- function(t,y, pars){
   with(as.list(c(pars,y)),{
@@ -572,9 +572,9 @@ points(L~time, data = mm7, type = "l", col = "green", lwd = 2, lty = 3)
 
 # Plot the most complex model ----
 
-# Load in the cluster data
+# Load in the equilibrium cluster data (run using the script "complex_model_non-eqm_to_cluster.R")
 
-if(F){
+if(F){ # Only necessary if loading data directly from cluster. Provided data is loaded below
   dirtoload = "Model_eqm_reps/"
   
   ftoload = list.files(dirtoload)
@@ -605,7 +605,7 @@ if(F){
   
 }
 
-data2 = read_rds(data2, "complex_model_10000_eqm.rds")
+data2 = read_rds("Data/complex_model_10000_eqm.rds")
 
 # Analyze the data
 
@@ -675,10 +675,12 @@ data.frame(StateVar = c("P", "L", "N", "S", "M"),
            ncol = c("#009E73","#E69F00","#56B4E9","#F0E442", "#0072B2"),
            npch = c(1,2,3,4,5))
 
+# Plot all four models together ----
 
-# c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
-
-# Put out the combined plot ----
+# A. Simple model, donor-controlled
+# B. Simple model, Lotka-Volterra
+# C. Complex model, equilibrium
+# D. Complex model, non-equilibrium
 
 png("Plots/Bothmodel2.png", width = 8, height = 8, units = "in", res = 600)
 
@@ -729,7 +731,7 @@ abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 points((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = data2c, col = ncol, pch = npch, cex = ncex)
 legend("topleft", legend = "C", bty = "n")
 
-outfinal3 = read_rds("Data/TrueLinearComplex.rds")
+outfinal3 = read_rds("Data/TrueLinearComplex.rds") # Load in the non-equilibrium cluster data
 
 outfinal3$ncol = as.character(outfinal3$ncol)
 

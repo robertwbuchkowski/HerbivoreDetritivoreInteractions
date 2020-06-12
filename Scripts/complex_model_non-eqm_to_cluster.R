@@ -9,17 +9,21 @@ NTOT = 100
 simyear = 100
 
 # Load in the required functions ----
+
+# A temperature function that takes day of the year (doy) and returns the temperature in Kelvin
+
 LTtemp = function(doy){
   
   -12.8244*cos(2*3.14/365*doy-0.3666)+281.9846
   
 }
 
+# The complex model
 singlemodel <-function(t, y,pars){
   
   with(as.list(c(pars,y)),{
     
-    TEMP = LTtemp(t %% 365)
+    TEMP = LTtemp(t %% 365) # Calculate temperature via day of the year
     
     # Model of earthworm growth. From ASA Johnston
     A_W = exp(-Ea/Kappa*(1/TEMP-1/Tref_W)) 
@@ -56,6 +60,7 @@ singlemodel <-function(t, y,pars){
   )
 }
 
+# Baseline parameters
 params<- c(Vlm_mod = 8e-6,
            Vsm_mod = 4e-06,
            Klm_mod = 0.143,
@@ -90,6 +95,7 @@ params<- c(Vlm_mod = 8e-6,
            Tref_W = 288.15,
            Tref_P = 297.65)
 
+# Starting inputs--> WE plots are the 1-m^2 plots discussed in the text
 yint= c(P=95.238095, # WE with R:S ratio from Buchkowski et al. 2018
         L=25.526097, # WE plots with C:N ratio from files
         M=7.160995, # WE plots
@@ -98,7 +104,9 @@ yint= c(P=95.238095, # WE with R:S ratio from Buchkowski et al. 2018
         S=134.845515, # my historical data
         H=0.009) # Schmitz et al. 1997 8-10/m2 * 0.0986 * 0.11
 
-# Single model sampling and treatment data frames --------
+# Complex model sampling and treatment data frames --------
+
+# A calculation of when the sample the model output in order to match it with the empirical results. If you save all the model data from >100,000 simulations the data file it prohibitively large
 
 hopsamp = seq(0,3,1)*365 + 266
 soilsamp = c(seq(1,3,1)*365 + 170, seq(0,3,1)*365 + 300)
@@ -110,7 +118,9 @@ timestosample = samp[order(samp)]
 
 rm(hopsamp, soilsamp, wormsamp,samp)
 
-# Creates dataframes that can be used as events in ODE simulations
+# Creates dataframes that can be used as events in ODE simulations -----
+
+# The events are used the remove earthworms, plant biomass, or litter at the start or throughout the simulated experiments
 
 timelist2_expt = sort(c(311,674,1047,114,474,844)) + 365
 
@@ -141,6 +151,8 @@ rm(timelist2_expt,timelist2)
 
 # Loop over different parameter sets ----
 
+# A function that simulates the model for a randomly drawn parameter set
+
 singlerun <- function(idx){
   ID = round(runif(1)*1e8,0) # set round ID
   ID2 = round(runif(1)*1e8,0) # set backup round ID
@@ -148,7 +160,7 @@ singlerun <- function(idx){
   ERRRRR = T # set loop
   ystable = yint
   
-  while(ERRRRR){
+  while(ERRRRR){ # A loop that draws parameter sets until one is found that generates a stable equilibrium 
     
     for(i in 1:(length(paramscur)-2)){
       paramscur[i] = rlnorm(1, meanlog = log(params[i]), sdlog = 0.3536)
@@ -165,29 +177,40 @@ singlerun <- function(idx){
 
   }
 
-  ystable2 = ystable
+  ystable2 = ystable # Save the stable model output
   
+  # Simulate each treatment in turn 
+  
+  # Returning worms to the 1-m^2 plots
   output2_WE_Return = ode(y=ystable,times = 1:tmax2, func=singlemodel, parms=paramscur)
   
+  # Removing worms from the 1-m^2 plots, using an event
   output2_WE_Remove = ode(y=ystable,times = 1:tmax2, func=singlemodel, parms=paramscur,
                           events = list(data=eshock_WE))
   
+  # Adding worms to the experimental plots, using an event
   output2_HW = ode(y=ystable,times = 1:tmax2, func=singlemodel, parms=paramscur,
                    events = list(data=eadd))
   
+  # Removing worms to the experimental plots, using an event
   output2_H = ode(y=ystable,times = 1:tmax2, func=singlemodel, parms=paramscur,
                   events = list(data=eshock))
   
   ystable["H"] = 0
   
+  # Adding worms to the experimental plots, using an event
   output2_W = ode(y=ystable,times = 1:tmax2, func=singlemodel, parms=paramscur,
                   events = list(data=eadd))
   
+  # Removing worms to the experimental plots, using an event
   output2_0 = ode(y=ystable,times = 1:tmax2, func=singlemodel, parms=paramscur,
                   events = list(data=eshock))
   
+  # Simulating plots in old-fields without grasshoppers
   output2_WE_Hopper = ode(y=ystable,times = 1:tmax2, func=singlemodel, parms=paramscur)
   
+  # Compile all the simulations
+  # Note: WE_Return is listed twice because the same simulation is used to model the 1-m^2 earthworm plots (with natural herbivory) and the herbivore expeirments with herbivores added.
   out = rbind(output2_WE_Return, output2_WE_Hopper,
               output2_WE_Return,output2_WE_Remove,
               output2_HW, output2_H, 
@@ -212,6 +235,7 @@ singlerun <- function(idx){
 
 repseq = seq(1, NTOT, 1)
 
+# Run the analysis. This takes a long time on a single core (days for 100 samples)
 out1 = lapply(repseq, FUN=singlerun)
 
 outf <- do.call("rbind", out1)
@@ -219,3 +243,5 @@ outf <- do.call("rbind", out1)
 fname = paste0("/gpfs/loomis/home.grace/fas/schmitz/rwb45/Model_parameter_reps/modelcluster_", round(runif(1), 7)*10000000,round(runif(1), 7)*10000000, ".csv")
 
 write.csv(outf, fname, row.names = F)
+
+# The results of this analysis are saved in the file: "fullmodeloutput_2020-04-07.rds"

@@ -1,23 +1,25 @@
 # Cluster model equilibrium 
 # April 10, 2020
 
-require(deSolve)
+require(deSolve) # version 1.21
 
 # How many replicates do you want to run in this code file?
 NTOT = 50
 
 # Load in the required functions ----
+# A temperature function that takes day of the year (doy) and returns the temperature in Kelvin
 LTtemp = function(doy){
   
   -12.8244*cos(2*3.14/365*doy-0.3666)+281.9846
   
 }
 
+# The complex model
 singlemodel <-function(t, y,pars){
   
   with(as.list(c(pars,y)),{
     
-    TEMP = LTtemp(t %% 365)
+    TEMP = LTtemp(t %% 365) # Calculate temperature via day of the year
     
     # Model of earthworm growth. From ASA Johnston
     A_W = exp(-Ea/Kappa*(1/TEMP-1/Tref_W)) 
@@ -54,6 +56,7 @@ singlemodel <-function(t, y,pars){
   )
 }
 
+# Baseline parameter values
 params<- c(Vlm_mod = 8e-6,
            Vsm_mod = 4e-06,
            Klm_mod = 0.143,
@@ -88,6 +91,7 @@ params<- c(Vlm_mod = 8e-6,
            Tref_W = 288.15,
            Tref_P = 297.65)
 
+# Starting inputs--> WE plots are the 1-m^2 plots discussed in the text
 yint= c(P=95.238095, # WE with R:S ratio from Buchkowski et al. 2018
         L=25.526097, # WE plots with C:N ratio from files
         M=7.160995, # WE plots
@@ -97,19 +101,22 @@ yint= c(P=95.238095, # WE with R:S ratio from Buchkowski et al. 2018
         H=0.009) # Schmitz et al. 1997 8-10/m2 * 0.0986 * 0.11
 
 # Loop over different parameter sets ----
-
+# A function that loops over different parameter sets
 singlerun <- function(idx){
   ID = round(runif(1)*1e8,0) # set round ID
   paramscur = params # imported params
   yint2 = yint
   
+  # Modify the parameter values
   for(i in 1:(length(paramscur)-2)){
     paramscur[i] = rlnorm(1, meanlog = log(params[i]), sdlog = 0.3536)
   }
   
   paramscur2 = paramscur
   
-  yts = 2000
+  yts = 2000 # Years to simulate
+  
+  # Simulate each treatment to equilibrium and judge it stable if the change is less than 1e-4 for any state variable
   
   stablerunHW = ode(y=yint2,times = seq(1, 365*yts,1), func=singlemodel, parms=paramscur2)
   if(dim(stablerunHW)[1] == 365*yts){
@@ -123,7 +130,7 @@ singlerun <- function(idx){
     ystableHW["Stable"] = 2
   }
    
-  
+  # Each step after the first model with both animals sets their parameters or and popualtion to zero before running, then resets to default before the next run. E.g. ->
   paramscur2[c("Vlw", "Vsw")] = 0
   yint2["W"] = 0
   
@@ -181,8 +188,10 @@ singlerun <- function(idx){
 
 repseq = seq(1, NTOT, 1)
 
+# Run the models: This takes a long time (weeks) on a single core!!
 out1 = lapply(repseq, FUN=singlerun)
 
+# Clean up the data and output
 out2 = vector(mode = "list", length = NTOT)
 out3 = vector(mode = "list", length = NTOT)
 
@@ -203,3 +212,5 @@ fname3 = paste0("/gpfs/loomis/home.grace/fas/schmitz/rwb45/Model_param_reps/mode
 
 write.csv(outf2, fname2, row.names = T)
 write.csv(outf3, fname3, row.names = F)
+
+# The compiled version of the data are saved as complex_model_10000_eqm.rds

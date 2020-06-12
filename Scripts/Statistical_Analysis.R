@@ -1,4 +1,4 @@
-# CH4 and WE Data Analysis and Exploration
+# Data Analysis and Exploration
 
 library(vegan) # version 2.5-6
 library(nlme) # version 3.1-137
@@ -9,8 +9,10 @@ library(tidyverse) # version 1.2.1
 
 verbose = F
 
+# Run the extract_data_model_analysis.R script to clean up the raw data and generate a data set that can be used to compare the model and data
 source("Scripts/extract_data_model_analysis.R")
 
+# Create directory to save the plots
 if(!dir.exists(paste0("Stats_plots_from_",Sys.Date()))){dir.create(paste0("Stats_plots_from_",Sys.Date()))}
 
 # 1.0 Experiment Analysis ----
@@ -79,8 +81,6 @@ RDAdata = RDAdata %>% rename(Earthworm_old = Earthworm, AP_N_old = AP_N) %>%
   left_join(pbdata %>% select(Plot, Year, WORM_N, AP_N)) %>%
   rename(Earthworm = WORM_N) %>%
   mutate(Year = as.factor(Year))
-  
-
 
 jpeg(paste0("Stats_plots_from_",Sys.Date(),"/wormStandardization_",Sys.Date(), ".jpeg"), units="in", width=7, height=6, res=600)
 pbdata %>% ggplot(aes(x = WORM_N_old, y = WORM_N, shape=Year, color = Addition)) + geom_point(size = 2) + theme_classic() + xlab("Earthworm (#)") + ylab("Earthworm (residuals)") + scale_color_manual(name = "Earthworm Treatment", values = c("#E69F00", "#56B4E9", "#009E73")) + scale_shape_discrete(labels= c("2017", "2018"))
@@ -92,6 +92,7 @@ write_rds(pbdata, "Data/pbdata.rds")
 
 # .. 1.1 Linear models --------------------
 
+# A function that runs the different linear models with and without interactions to make the final output easier
 linearmodels<- function(inputdata, inter = T){
   inputdata[,"Base16"] = inputdata$PlantBiomass16
   PBinter = lmer(PlantBiomass ~ WORM_N*HopperN + Year + Base16 + (1|Plot), data= inputdata)
@@ -123,9 +124,9 @@ linearmodels<- function(inputdata, inter = T){
 }
 
 # ... 1.1.1 Original model analysis ----
-linearmodels(pbdata)
+linearmodels(pbdata) # With interaction
 
-linearmodels(pbdata, inter= F)
+linearmodels(pbdata, inter= F) # Without interaction
 # ... 1.1.2 Model analysis with raw earthworm number ----
 linearmodels(pbdata %>% mutate(WORM_N = WORM_N_old))
 
@@ -150,6 +151,7 @@ linearmodels(pbdata %>% mutate(WORM_N = AP_N))
 linearmodels(pbdata %>% mutate(WORM_N = AP_N_old))
 # ... 1.1.6 Model analysis of two years separately ----
 
+# A new version of the linear model function that lets you select years separately
 YearSeparateModels<- function(inputdata, inter = T){
   
   inputdata[,"Base16"] = inputdata$PlantBiomass16
@@ -186,7 +188,7 @@ YearSeparateModels(pbdata %>% filter(Year == "17"))
 # No interactions in 2018
 YearSeparateModels(pbdata %>% filter(Year == "18"))
 
-# ... 1.1.7 Plot the results ----
+# ... 1.1.7 Plot the results of the univariate linear models ----
 
 pbdata = pbdata %>% mutate(Year = as.factor(Year))
 
@@ -274,7 +276,7 @@ pbdata = pbdata %>% select(-Base16)
 
 rm(PBfinal,SIRfinal, NTsfinal, NTmfinal)
 
-#.... 1.1.8 Effect of biomass control ----
+#.... 1.1.8 Model the effects of biomass control and year ----
 
 bmdata = pbdata %>% filter(HopperAdd!="Add" & Addition!="Add")
 
@@ -391,11 +393,13 @@ summary(lm(Cover~Addition+Year, data=coverworm %>% filter(Fcn_grp =="legume")))
 summary(lm(Cover~Addition+Year, data=coverworm %>% filter(Fcn_grp =="grass")))
 summary(lm(Cover~Addition+Year, data=coverworm %>% filter(Fcn_grp =="forb")))
 
-# worm treatment or number don't explain changes in cover...largest effect is time with forbs replacing clover.
+# worm treatment or number don't explain changes in plant cover...largest effect is time with forbs replacing clover.
 
 rm(coverworm)
 
 # .. 1.3 Run SEM Models ----
+
+# Modify and standardize the data for the SEM analysis
 
 Totals = RDAdata %>% select(ACMI:VICR) %>% rowSums()
 
@@ -423,6 +427,8 @@ pbdata_SEM = pbdata_SEM %>% select(PlantBiomass, Plot, Year, WORM_N_scale:SOALba
   separate(Variable, into=c("Variable", "sclae"), sep="_s") %>%
   select(-sclae) %>%
   spread(key = Variable, value = value)
+
+# Define the SEMs with and without interactions
 
 SEM1 <- psem(lme(PlantBiomass ~ WORM_N*HopperN + SIR + NTs + NTm + PlantBiomass16 + SOAL + TRPR + Year,random=~1|Plot, data=pbdata_SEM),
              lme(SOAL ~WORM_N*HopperN + SOALbase + Year,random=~1|Plot, data=pbdata_SEM),
@@ -516,6 +522,8 @@ data.frame(Model = c("All H x W interations", "Only plant interaction", "No inte
            AIC = c(AIC(SEM1),AIC(SEM2),AIC(SEM3), AIC(SEM4))
 )
 
+
+# Create an output table for the SEM results
 SEM3a$coefficients[,1:8] %>%
   left_join(
     data.frame(Response = unique(SEM3a$coefficients$Response),
@@ -634,7 +642,7 @@ W_Nm18 = lm(NTm~WORM_N + NTm16, data= pbdataWE %>% filter(Year=="18")); summary(
 
 # no significant effects of previous biomass, SIR, NTs, or WORM_N on plant biomass in these plots
 
-# .. Plant Community Composition Analysis: RDA ----
+# .. 2.2 Plant Community Composition Analysis: RDA ----
 
 planthel = decostand(RDAWdata %>% select(ACMI:VILA), "hellinger")
 

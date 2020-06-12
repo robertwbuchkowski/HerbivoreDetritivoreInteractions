@@ -11,15 +11,24 @@ if(!dir.exists(paste0("simplemodel_",Sys.Date()))){
 
 # .. 0.1 Load in data and functions ----------------------------------------------------
 
+# A temperature function that takes day of the year (doy) and returns the temperature in Kelvin
 LTtemp = function(doy){
   
   -12.8244*cos(2*3.14/365*doy-0.3666)+281.9846
   
 }
 
+# Load in the data from field experiments
 datatomodel2 = read_csv("Data/datatomodel2.csv")
 
-# 1.0 Single Model -----------------------------------------
+# ------- EXPANATION FOR MAJOR CODE CHUNKS ---------#
+# Sections 1 to 3 below run the different model versions. Section 1 runs the complex model with a single plant species. Section 2 runs the Direct effects model. Section 3 runs the multiple species model. In Sections 2 and 3, there are two version of each model with slight differences in their parameterization. Sections 1.0.0.1 and 3.1.0.1 load in the sampling frame and the event functions to simulate treatments. These are analagous to the ones presented in the script complex_model_non-eqm_to_cluster.R
+
+# These models can take a while to run. You can look only at the results by skipping to section 5 and loading in the outputs provided in the data files.
+
+# The section 6 plots the model over a longer time frame so that dynamics can be observed after initial transience has past.
+
+# 1.0 Single Model (i.e the Complex Model) -----------------------------------------
 
 singlemodel <-function(t, y,pars){
   
@@ -1089,17 +1098,7 @@ multipleoutput2 = output
 
 rm(output)
 
-# 4.0 Compare the dynamics of single and multiple species outputs -----
-
-datatomodel2a = datatomodel2 %>% 
-  group_by(time, Treatment, StateVar) %>%
-  summarize(std = sd(Biomass), Biomass = mean(Biomass)) %>%
-  mutate(lower = Biomass - std, upper = Biomass + std) %>% 
-  filter(Treatment %in% c("Rt","RmW","HW","H","W","N")) %>%
-  ungroup() %>% left_join(
-    data.frame(Treatment = c("Rt",  "RmW", "HW",  "H",   "W",   "N"),
-               Treatment3 = c("eRt",  "fRmW", "dHW",  "bH",   "cW",   "aN"))
-  )
+# 4.0 Output all the model results -----
 
 singleoutput["Treatment2"] = rep(c("T5","T4","T3","T2","T1","T0"), each=tmax2)
 singleoutput["Type"] = "Single"
@@ -1125,6 +1124,18 @@ write_rds(directoutput, "Data/directoutput.rds")
 write_rds(directoutput2, "Data/directoutput2.rds")
 write_rds(multipleoutput, "Data/multipleoutput.rds")
 write_rds(multipleoutput2, "Data/multipleoutput2.rds")
+# 5.0 Compare the dynamics of single and multiple species outputs -----
+
+# Modify the empirical data
+datatomodel2a = datatomodel2 %>% 
+  group_by(time, Treatment, StateVar) %>%
+  summarize(std = sd(Biomass), Biomass = mean(Biomass)) %>%
+  mutate(lower = Biomass - std, upper = Biomass + std) %>% 
+  filter(Treatment %in% c("Rt","RmW","HW","H","W","N")) %>%
+  ungroup() %>% left_join(
+    data.frame(Treatment = c("Rt",  "RmW", "HW",  "H",   "W",   "N"),
+               Treatment3 = c("eRt",  "fRmW", "dHW",  "bH",   "cW",   "aN"))
+  )
 
 # Read data files
 singleoutput = read_rds("Data/singleoutput.rds")
@@ -1141,7 +1152,7 @@ outputall = rbind(singleoutput, directoutput,directoutput2, multipleoutput,multi
 speciescomp = outputall %>% filter(Type %in% c("Multiple", "Multiple2")) %>%
   select(time, P1, P2, Treatment, Type)
 
-# . 4.1 Plot the outputs into a single file for viewing ----
+# . 5.1 Plot the outputs into a single file for viewing ----
 
 StateVar_names <- c(
   "H" = "Herbivore" ,
@@ -1186,15 +1197,13 @@ pdf(paste0("simplemodel_",Sys.Date(),"/Grahipcs_compare_",
 
 outputall %>% as_tibble() %>% filter(time < tmax2_expt) %>% select(-Treatment2,-Treatment, -P1, -P2) %>% gather(-Type, -time, -Treatment3, key = StateVar, value = Biomass) %>% ggplot() + geom_line(aes(x=time, y=Biomass, linetype = Type), alpha=0.5) + theme_classic() + facet_grid(StateVar~Treatment3, scales="free_y",labeller=labeller(StateVar = StateVar_names, Treatment3 = Treatment3_names)) + scale_color_manual(values=c("purple", "brown", "green", "blue", "pink", "red"),labels=c("None (Expt)", "Worm (Expt)", "Hopper (Expt)", "Both (Expt)", "Removal", "Return")) + ylab(expression(Biomass~(g[N]~m^-2))) + xlab("Time (Days since start)") + ylab(expression(Biomass~(g[N]~m^-2))) + xlab("Time (Days since start)")+ geom_errorbar(data = datatomodel2a, aes(x=time, ymin = lower, ymax = upper, color=Treatment3)) + geom_point(data = datatomodel2a, aes(x=time, y= Biomass, color=Treatment3), size=2)
 
-source("Scripts/plotcompare.R")
+source("Scripts/plotcompare.R") # Load a plotting function
 
 plotcompare(outputall, "Single")
 plotcompare(outputall, "Direct")
 plotcompare(outputall, "Direct2")
 plotcompare(outputall, "Multiple")
 plotcompare(outputall, "Multiple2")
-
-# cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 
 toplot %>% filter(time %in% seq(1, 105*365, by = 365/10)) %>% 
   mutate(time = time/365) %>% 
@@ -1212,6 +1221,8 @@ speciescomp %>% as_tibble() %>% mutate(Prop = P1/(P1+P2))  %>%
   ggplot(aes(x=Year, y = Prop, color = Treatment, size = LW, linetype = Type)) + geom_line() + theme_classic() + scale_color_manual(values=c("purple", "brown", "green", "blue"),labels=c("None (Expt)", "Worm (Expt)", "Hopper (Expt)", "Both (Expt)")) + ylab("Proportion of fast growing plant") + scale_size(guide = F, range = c(1,3)) + xlab("Time (years)")
 
 dev.off()
+
+# . 5.2 Produce individual plots for the MS -----
 
 png(paste0("simplemodel_",Sys.Date(),"/talk.png"), width=7, height=5, units = "in", res = 1000)
 toplot %>% filter(time %in% seq(1, 105*365, by = 365/10)) %>% mutate(time = time/365) %>% filter(!(StateVar %in% c("P1", "P2","H", "W"))) %>% filter(Treatment == "dInteraction") %>% 
@@ -1247,10 +1258,11 @@ toplot %>% filter(time %in% seq(1, 105*365, by = 365/10)) %>%
   ggplot() + geom_line(aes(x=time, y=Biomass, color = Type2), alpha=0.5) + theme_classic() + facet_wrap(Treatment~StateVar, scales="free_y",labeller=labeller(StateVar = StateVar_names, Treatment = effect_names), ncol =5, nrow = 2) + ylab(expression(Biomass~(g[N]~m^-2))) + xlab("Time (years)") + geom_hline(yintercept = 0, lty=2) + scale_color_manual(name = "Model", values = c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")) + theme(legend.position = "top")
 dev.off()
 
-# 5.0 Single Model: Run for 1000 years -----------------------------------------
+# 6.0 Single Model: Run the model for a long time (1000 years) ------
 
-simyear = 1000
+simyear = 1000 # How long to run the model?
 
+# Reload the model and parameters, for convenience
 singlemodel <-function(t, y,pars){
   
   with(as.list(c(pars,y)),{
@@ -1334,7 +1346,7 @@ yint= c(P=95.238095, # WE with R:S ratio from Buchkowski et al. 2018
         S=134.845515, # my historical data
         H=0.009) # Schmitz et al. 1997 8-10/m2 * 0.0986 * 0.11
 
-yts = 1000
+yts = 1000 # Years to simulate to equilibrium 
 
 initialrun = ode(y=yint,times = seq(1,365*yts,1), func=singlemodel, parms=params)
 
@@ -1348,7 +1360,7 @@ initialrun %>% as.data.frame() %>% as_tibble() %>%
 
 yint3 = initialrun[365*(yts-1),-1]
 
-# .... 5.0.0.1 Single model sampling and treatment data frames --------------------------------------
+# .... 6.0.0.1 Single model sampling and treatment data frames for 1000 years --------------------------------------
 
 hopsamp = seq(0,3,1)*365 + 266
 soilsamp = c(seq(1,3,1)*365 + 170, seq(0,3,1)*365 + 300)
@@ -1389,7 +1401,7 @@ eadd <- data.frame(var = c("P", "L", "W", rep("W", length(timelist2))),
 
 rm(timelist2_expt,timelist2)
 
-# .. 1.0.1 Simulations -------------------------------------------------
+# .. 6.0.1 Simulations of the long-term simulation -----
 
 output2_WE_Return = ode(y=yint3,times = 1:tmax2, func=singlemodel, parms=params)
 
@@ -1421,71 +1433,14 @@ head(output)
 output[,"P1"] = output$P
 output$P = output$P*0.1 # 10% of plant biomass is aboveground
 
-if(F){
-  
-  
-  datatomodel2a = datatomodel2 %>% 
-    group_by(time, Treatment, StateVar) %>%
-    summarize(std = sd(Biomass), Biomass = mean(Biomass)) %>%
-    mutate(lower = Biomass - std, upper = Biomass + std) %>% 
-    filter(Treatment %in% c("Rt","RmW","HW","H","W","N")) %>%
-    ungroup()
-  
-  pdf(paste0("simplemodel_",Sys.Date(),"/Grahipcs",
-             round(100*(hour(Sys.time()) + (minute(Sys.time()))/60)),
-             ".pdf"), width=7, height=7)
-  
-  output %>% filter(time < tmax2_expt) %>% gather(-time, -Treatment, key = StateVar, value = Biomass) %>% ggplot() + geom_line(aes(x=time, y=Biomass), alpha=0.5) + theme_classic() + facet_grid(StateVar~Treatment, scales="free_y")  + scale_color_manual(values=c("purple", "brown", "green", "blue", "pink", "red"),labels=c("None (Expt)", "Worm (Expt)", "Hopper (Expt)", "Both (Expt)", "Removal", "Return")) + ylab(expression(Biomass~(g[N]~m^-2))) + xlab("Time (Days since start)") + ylab(expression(Biomass~(g[N]~m^-2))) + xlab("Time (Days since start)")+ geom_errorbar(data = datatomodel2a, aes(x=time, ymin = lower, ymax = upper, color=Treatment)) + geom_point(data = datatomodel2a, aes(x=time, y= Biomass, color=Treatment), size=2)
-  
-  outdataCOMP = datatomodel2a %>% 
-    left_join(as_tibble(output) %>% gather(-time, -Treatment, key = StateVar, value = Model))
-  
-  SVorder = unique(outdataCOMP$StateVar)
-  
-  vec = rep(NA, length(SVorder))
-  for(i in 1:length(SVorder)){
-    ms =lm(Biomass~Model + 0, data=outdataCOMP %>% filter(StateVar==SVorder[i]))
-    mss = ifelse(ms$coefficients[1]>=0, "", "-")
-    vec[i] = paste0("R[Full]^2 == ",mss,round(summary(ms)$adj.r.squared,2))
-  }
-  rm(ms, mss)
-  vec2 = rep(NA, length(SVorder))
-  for(i in 1:length(SVorder)){
-    ms =lm(Biomass~Model + 0, data=outdataCOMP %>% 
-             filter(StateVar==SVorder[i] & Treatment %in% c("N","H","W","HW")))
-    mss = ifelse(ms$coefficients[1]>=0, "", "")
-    vec2[i] = paste0("R[Expt]^2 == ",mss, round(summary(ms)$adj.r.squared,2))
-  }
-  
-  
-  maxes = outdataCOMP %>% 
-    group_by(StateVar) %>%
-    summarize(BMmax = max(max(Biomass + upper), max(Model)))
-  
-  ann_text <- tibble(SVorder, vec, vec2) %>%
-    gather(-SVorder, key = type, value = R2) %>%
-    rename(StateVar = SVorder) %>%
-    left_join(maxes) %>%
-    mutate(Model = BMmax*0.2) %>%
-    mutate(Biomass = ifelse(type == "vec", BMmax*0.9, BMmax*0.8))
-  
-  rm(vec, vec2)
-  
-  ggplot(outdataCOMP, aes(x=Model, y=Biomass, color=Treatment)) + geom_abline(intercept=0, slope=1, lty=2) + geom_point() + geom_errorbar(data = outdataCOMP, aes(ymin = lower, ymax = upper, color=Treatment)) +  facet_wrap(c("StateVar"), scales="free") + theme_classic() + scale_color_manual(values=c("purple", "brown", "green", "blue", "pink", "red"),labels=c("None (Expt)", "Worm (Expt)", "Hopper (Expt)", "Both (Expt)", "Removal", "Addition")) + geom_text(data = ann_text,label = ann_text$R2, color="black", parse=T) + geom_blank(data = maxes %>% mutate(Model = BMmax, Biomass = BMmax, Treatment = "N") %>% bind_rows(maxes %>%  mutate(Model = 0, Biomass = 0, Treatment = "N")))
-  
-  output2 = output
-  
-  output2["Treatment"] = rep(c("T5","T4","T3","T2","T1","T0"), each=tmax2)
-  
-  as_tibble(output2) %>% gather(-time, -Treatment, key = StateVar, value = Biomass) %>% spread(key=Treatment, value=Biomass) %>% mutate(WE = T5-T4, Both = T3-T0, H = T2-T0, W = T1-T0) %>% mutate(Interaction = Both-(H+W)) %>% select(time, StateVar, WE, Both, H, W,Interaction) %>% gather(-time, -StateVar, key=Treatment, value=Biomass) %>% ggplot() + geom_line(aes(x=time, y=Biomass), alpha=0.5) + theme_classic() + facet_grid(StateVar~Treatment, scales="free_y") + ylab(expression(Biomass~(g[N]~m^-2))) + xlab("Time (Days since start)") + geom_hline(yintercept = 0, lty=2)
-  
-  dev.off()
-}
-
 # Save the single model output
 longtermoutput = output
 write_rds(longtermoutput, "Data/longtermoutput.rds")
 rm(output)
+
+# .. 6.0.2 Plotting of the long-term simulation ----
+
+longtermoutput = read_rds("Data/longtermoutput.rds")
 
 longtermoutput["Treatment2"] = rep(c("T5","T4","T3","T2","T1","T0"), each=tmax2)
 
