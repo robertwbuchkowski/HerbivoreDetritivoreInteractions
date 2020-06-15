@@ -4,7 +4,7 @@
 require(deSolve) # version 1.21
 
 # How many replicates do you want to run in this code file?
-NTOT = 3
+NTOT = 50
 
 # Load in the required functions ----
 # A temperature function that takes day of the year (doy) and returns the temperature in Kelvin
@@ -231,11 +231,11 @@ outf4 <- do.call("rbind", out4)
 
 fname = paste0(round(runif(1), 7)*10000000,round(runif(1), 7)*10000000)
 
-fname2 = paste0("/gpfs/loomis/home.grace/fas/schmitz/rwb45/Model_eqm_reps/model_", fname, "_eqm.csv")
+fname2 = paste0("/gpfs/loomis/home.grace/fas/schmitz/rwb45/Model_eqm_Jun2020/model_", fname, "_eqm.csv")
 
-fname3 = paste0("/gpfs/loomis/home.grace/fas/schmitz/rwb45/Model_param_reps/model_", fname, "_param.csv")
+fname3 = paste0("/gpfs/loomis/home.grace/fas/schmitz/rwb45/Model_eqm_Jun2020/model_", fname, "_param.csv")
 
-fname4 = paste0("/gpfs/loomis/home.grace/fas/schmitz/rwb45/Model_noneqm_reps/model_", fname, "_noneqm.csv")
+fname4 = paste0("/gpfs/loomis/home.grace/fas/schmitz/rwb45/Model_eqm_Jun2020/model_", fname, "_noneqm.csv")
 
 write.csv(outf2, fname2, row.names = T)
 write.csv(outf3, fname3, row.names = F)

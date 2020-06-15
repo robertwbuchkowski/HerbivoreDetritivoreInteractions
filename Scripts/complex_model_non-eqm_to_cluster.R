@@ -242,7 +242,7 @@ out1 = lapply(repseq, FUN=singlerun)
 
 outf <- do.call("rbind", out1)
 
-fname = paste0("/gpfs/loomis/home.grace/fas/schmitz/rwb45/Model_parameter_reps/modelcluster_", round(runif(1), 7)*10000000,round(runif(1), 7)*10000000, ".csv")
+fname = paste0("/gpfs/loomis/home.grace/fas/schmitz/rwb45/Model_noneqm_Jun2020/modelcluster_", round(runif(1), 7)*10000000,round(runif(1), 7)*10000000, ".csv")
 
 write.csv(outf, fname, row.names = F)
 
