@@ -3,6 +3,7 @@
 #The complex model output are available in the data provided, but were run separately using other scripts on a cluster.
 
 library(FME) # version 1.3.5
+library(tidyverse)
 
 # Analysis of simple DC model ----
 
@@ -575,9 +576,11 @@ points(L~time, data = mm7, type = "l", col = "green", lwd = 2, lty = 3)
 # Load in the equilibrium cluster data (run using the script "complex_model_non-eqm_to_cluster.R")
 
 if(F){ # Only necessary if loading data directly from cluster. Provided data is loaded below
-  dirtoload = "Model_eqm_reps/"
+  dirtoload = "Model_eqm_Jun2020/"
   
   ftoload = list.files(dirtoload)
+  
+  ftoload = ftoload[grepl("_eqm.csv", x = ftoload)]
   
   listOfDataFrames <- vector(mode = "list", length = length(ftoload))
   
@@ -587,9 +590,10 @@ if(F){ # Only necessary if loading data directly from cluster. Provided data is 
   
   data2 <- do.call("rbind", listOfDataFrames)
   
-  dirtoload = "Model_param_reps/"
   
   ftoload = list.files(dirtoload)
+  
+  ftoload = ftoload[grepl("_param.csv", x = ftoload)]
   
   listOfDataFrames <- vector(mode = "list", length = length(ftoload))
   
@@ -597,39 +601,63 @@ if(F){ # Only necessary if loading data directly from cluster. Provided data is 
     listOfDataFrames[[ii]] <- read.csv(paste0(dirtoload,ftoload[ii]))
   }
   
-  param2 <- do.call("rbind", listOfDataFrames)
+  paramsEQM <- do.call("rbind", listOfDataFrames)
+  
+  apply(paramsEQM,2, sd)
+  
+  ftoload = list.files(dirtoload)
+  
+  ftoload = ftoload[grepl("_noneqm.csv", x = ftoload)]
+  
+  listOfDataFrames <- vector(mode = "list", length = length(ftoload))
+  
+  for(ii in 1:length(ftoload)){
+    listOfDataFrames[[ii]] <- read.csv(paste0(dirtoload,ftoload[ii]))
+  }
+  
+  data2_noneqm <- do.call("rbind", listOfDataFrames)
   
   rm(listOfDataFrames,ftoload)
+  
+  data2aa = data2 %>%
+    separate(X, into = c(NA, "X"), sep = 7) %>%
+    filter(Stable == 1) %>% 
+    rename(Treatment = X) %>%
+    mutate(Type = "EQM")
+  
+  data2_noneqm_aa = data2_noneqm %>%
+    left_join(
+      data2aa %>% select(ID, Treatment, Stable) %>% distinct()
+    ) %>%
+    mutate(Type = "NON-EQM")
+  
+  colnames(data2aa)
+  colnames(data2_noneqm_aa)
+  
+  data2 = data2aa %>%
+    bind_rows(
+      data2_noneqm_aa
+    )
   
   write_rds(data2, "Data/complex_model_10000_eqm.rds")
   
 }
 
-data2 = read_rds("Data/complex_model_10000_eqm.rds")
+data2 = read_rds("Data/complex_model_10000_eqm.rds") %>% distinct()
 
 # Analyze the data
-
-data2 %>% as_tibble() %>%
-  select(X, H, W) %>%
-  gather(-X, key = StateVar, value = B) %>%
-  group_by(X, StateVar) %>%
-  summarize(sd = sd(B, na.rm = T), mean = mean (B, na.rm = T), min = min(B, na.rm = T))
-
-library(tidyverse)
-
 data2a = data2 %>% as_tibble() %>% 
-  gather(-X, -Stable, -ID, key = StateVar, value = biomass) %>%
-  filter(Stable == 1) %>%
-  separate(X, into = c(NA, "X"), sep = 7)
-
+  gather(-Treatment, -Stable, -ID, - Type, key = StateVar, value = biomass) %>%
+  filter(Stable == 1) %>% select(-Stable)
 data2b = data2a %>%
-  group_by(ID) %>% summarize(N = n()) %>% filter(N == 28) %>%
-  select(ID) %>%
+  group_by(ID, Type) %>% summarize(N = n()) %>% filter(N == 28) %>%
+  select(ID, Type) %>%
   left_join(
     data2a
   ) %>%
-  spread(key = X, value = biomass) %>%
-  filter(!StateVar %in% c("H", "W")) %>% select(-Stable)
+  distinct() %>%
+  spread(key = Treatment, value = biomass) %>%
+  filter(!StateVar %in% c("H", "W"))
 
 data2c = data2b %>%
   mutate(WE = W - N,
@@ -645,12 +673,30 @@ data2c = data2b %>%
   left_join(
     data2 %>% as_tibble() %>% 
       mutate(Best = ifelse(N < P & N < L & H < 100*P & W < 100*L, 1,0)) %>%
-      group_by(ID) %>% summarize(N = sum(Best)) %>%
+      group_by(ID, Type) %>% summarize(N = sum(Best)) %>%
       mutate(ncex = ifelse(N == 4, 1, 0.5)) %>%
-      select(ID, ncex)
+      select(ID, Type, ncex)
   )
 
 data2c$ncol = as.character(data2c$ncol)
+
+data2c %>% ggplot(aes(x = abs(IE+ 1e-6), fill = Type)) + geom_histogram() + facet_wrap(.~StateVar) + scale_x_log10() + theme_classic()
+
+data2c %>% select(ID, Type, StateVar, IE) %>%
+  spread(key = Type, value = IE) %>%
+  mutate(DIFF = `NON-EQM`-EQM) %>%
+  filter(!is.na(DIFF)) %>%
+  ungroup() %>%
+  summarize(mean(DIFF), min(DIFF), quantile(DIFF, 0.25),quantile(DIFF, 0.5), quantile(DIFF, 0.75), max(DIFF))
+
+data2c %>% select(ID, Type, StateVar, IE) %>%
+  spread(key = Type, value = IE) %>%
+  mutate(DIFF = `NON-EQM`-EQM) %>%
+  ggplot(aes(x = abs(DIFF)+1e-6)) + geom_histogram() + facet_wrap(.~StateVar) + theme_classic() + scale_x_log10()
+
+# Split the two types
+data2c_noneqm = data2c %>% filter(Type == "NON-EQM") %>% select(-Type)
+data2c = data2c %>% filter(Type == "EQM") %>% select(-Type)
 
 plot((abs(IE+1e-6))~(abs(WE+1e-6)), data = data2c, log = 'xy', col = ncol, pch = npch,
      xlab= "Detritivore Effect (log|DE|)", ylab = "Interaction Effect (log|IE|)", cex = ncex)
@@ -718,7 +764,7 @@ legend("topleft", legend = "B", bty = "n")
 
 plot((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = data2c, log = 'xy', col = ncol, pch = npch, cex = ncex,
      xlab= "", 
-     ylab = "", type = "n", main = "Complex: Type II",
+     ylab = "", type = "n", main = "Complex: Equilibrium",
      axes = F, ylim = c(1e-11, 1e5), xlim = c(1e-11, 1e5))
 axis(1, at = c(1e-11,1e-3,1e5), labels = expression(10^-11,10^-3,10^5))
 axis(2, at = c(1e-11,1e-3,1e5), labels = expression(10^-11,10^-3,10^5))
@@ -730,6 +776,21 @@ abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 points((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = data2c, col = ncol, pch = npch, cex = ncex)
 legend("topleft", legend = "C", bty = "n")
+
+plot((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = data2c_noneqm, log = 'xy', col = ncol, pch = npch, cex = ncex,
+     xlab= "", 
+     ylab = "", type = "n", main = "Complex: Non-equilibrium",
+     axes = F, ylim = c(1e-11, 1e5), xlim = c(1e-11, 1e5))
+axis(1, at = c(1e-11,1e-3,1e5), labels = expression(10^-11,10^-3,10^5))
+axis(2, at = c(1e-11,1e-3,1e5), labels = expression(10^-11,10^-3,10^5))
+abline(a = 0, b = 1, lty = 2, lwd = 2)
+abline(a = 0, b = 1, lty = 2, lwd = 2)
+abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
+abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
+abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
+abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
+points((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = data2c_noneqm, col = ncol, pch = npch, cex = ncex)
+legend("topleft", legend = "D", bty = "n")
 
 outfinal3 = read_rds("Data/TrueLinearComplex.rds") # Load in the non-equilibrium cluster data
 
