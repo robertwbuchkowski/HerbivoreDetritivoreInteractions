@@ -13,7 +13,7 @@ datatomodel2 = read_csv("Data/datatomodel2.csv")
 
 if(loadcsv){ # Only important if you are loading in data from the raw outputs of "complex_model_non-eqm_to_cluster.R"
   
-  dirtoload = "Model_parameter_reps/"
+  dirtoload = "Model_noneqm_Jun2020/"
   
   ftoload = list.files(dirtoload)
   
@@ -30,25 +30,18 @@ if(loadcsv){ # Only important if you are loading in data from the raw outputs of
   
   data2$Run = paste0(data2$Run, data2$Run2)
   
-  data2[(data2$Run == "1265295198941570"),"Run"] = paste0("1265295198941570", rep(c("a", "b"), each = 160))
-  
-  data2[(data2$Run == "9350897575923356"),"Run"] = paste0("9350897575923356", rep(c("a", "b"), each = 160))
-  
   # check for duplicate Run names and replace them
   table(data2$Run)[table(data2$Run) != 160]
   
   # Get rid of RUNS without full list
-  data2 = data2 %>% filter(!(Run %in% c("136000865099306", "607788797750269", "6910132952357214", "8144381321489318")))
-  
-  
-  # Get rid of old runs with different parameters
-  data2 = data2 %>% filter(!(Run %in% c("781432577815019", "913552857172145", "1661660371424339", "3920818041951100", "2666331860014817")))
+  data2 = data2 %>% filter(!(Run %in% c("138385645710656", "2071216147931349", "5029548420248414", "5777566158453009", "7718466888195712")))
 
   saveRDS(data2, file = paste0("Data/fullmodeloutput_",Sys.Date(),".rds"))
 }
 
 # The following .rds file was created by using the function "rbind" to join individual model outputs
-data2 <- readRDS("Data/fullmodeloutput_2020-04-07.rds")
+data2 <- readRDS("Data/fullmodeloutput_2020-06-22.rds")
+# 277,499 unique runs with full data
 
 # Baseline parameter values, repeated for convenience
 params<- c(Vlm_mod = 8e-6,
@@ -99,24 +92,41 @@ data3 <- data2 %>% select(-PARS, -YSTABLE, -Run2) %>% filter(time!=-1) %>% renam
                Treatment = c("N", "W", "H", "HW", "RmW", "Rt", "RmH",
                              "RtH"))
   ) %>% select(-TreatmentN) %>%
-  # mutate(P = P1 + P2) %>%
   select(time, Treatment, Expt,Run, W,P,H,M,N) %>%
   gather(- Expt, -Treatment, -time, -Run, key=StateVar, value=Model)
+
+PARMS = data2 %>% select(PARS, Run) %>% 
+  mutate(NPAR = rep(c(names(params), rep("REMOVE", 127)), 
+                    length(unique(data2$Run)))) %>%
+  filter(NPAR != "REMOVE")
+
+saveRDS(PARMS, file = paste0("Data/PARMS_",Sys.Date(),".rds"))
+
+# Clean out memory
+rm(data2, PARMS)
 
 # Match and select best runs ----
 
 # calculate median absolute deviation (instead of standard deviation) for unique model runs
 # based on van der Vaart et al. 2015
 
+# The full dataset is too big to run, so I need to do it in parts
+
+
+
+write_rds(data3)
+
 # Decide whether to use experiment data, extra field data (i.e. 1-m^2 plots) or both. I use both in the manuscript
 useexptdata = T
 useextradata = T
 
+MSD = data3 %>% group_by(Expt,StateVar) %>% 
+  summarize(Msd = mad(Model))
+
 if(useexptdata){
   if(useextradata){
     data4 = data3 %>% left_join(
-      data3 %>% group_by(Expt,StateVar) %>% 
-        summarize(Msd = mad(Model))) 
+      ) 
   }else{
     data4 = data3 %>% left_join(
       data3 %>% group_by(Expt,StateVar) %>% 
@@ -287,11 +297,8 @@ dev.off()
 rm(data5)
 
 # Look at parameter matches
-parVT = data2 %>% select(PARS, Run) %>% 
-  mutate(NPAR = rep(c(names(params), rep("REMOVE", 127)), 
-                    length(unique(data2$Run)))) %>%
-  filter(NPAR != "REMOVE") %>% left_join(errord) %>% 
-  filter(!NPAR %in% c("Tref_W", "Tref_P") & !is.na(fit))
+parVT = PARMS %>% left_join(errord) %>% 
+  filter(!NPAR %in% c("kappa","Tref_W", "Tref_P") & !is.na(fit))
 
 pvec = unique(parVT$NPAR)
 sigvec = rep(-1, length(pvec))
@@ -317,7 +324,7 @@ par_plot = parVT %>%
 
 parameters = c("B", "D", "E[a]",
                "f[i]", "f[o]", 
-               "I[N]", "kappa",
+               "I[N]",
                "K[int]", "K[LM]^0", 
                "K[NP]","K[slope]", "K[SM]^0",
                "l", "q",
