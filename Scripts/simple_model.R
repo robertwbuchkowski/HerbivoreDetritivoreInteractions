@@ -229,6 +229,8 @@ abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 dev.off()
 
+write_csv(outlist2, "Data/simplemodel_DC.csv")
+
 # Create plot of simulations over time
 
 simlist = do.call("rbind", simlist)
@@ -488,6 +490,8 @@ abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 dev.off()
 
+write_csv(out4, "Data/simplemodel_LV.csv")
+
 # Simulate the Lotka-Volterra simple model over time 
 
 simpleLVmodel1 <- function(t,y, pars){
@@ -570,6 +574,15 @@ points(Iorg~time, data = mm7, type = "l", col = "green", lwd = 2, lty = 3)
 plot(L~time, data = mm5, type = "l", lwd = 2, ylim = c(range(c(mm5[,"L"], mm6[,"L"], mm7[,"L"]))))
 points(L~time, data = mm6, type = "l", col = "red", lwd = 2, lty = 2)
 points(L~time, data = mm7, type = "l", col = "green", lwd = 2, lty = 3)
+
+# Clean out the earlier analysis -----
+
+rm(i,j, mm1,mm2,mm3,mm4,mm5,mm6,mm7, out2, out3, outlist, outlist3, paramlist, params, run1, simlist, simpleDCmodel1,simpleDCmodel2,simpleDCmodel3,simpleDCmodel4,simpleLVmodel1,simpleLVmodel2,simpleLVmodel3,simpleLVmodel4, t1, tempt, test, test2, yint)
+
+# Load in the simple model data if necessary -----
+
+outlist2 = read_csv("Data/simplemodel_DC.csv")
+out4 = read_csv("Data/simplemodel_LV.csv")
 
 # Plot the most complex model ----
 
@@ -680,19 +693,19 @@ data2c = data2b %>%
 
 data2c$ncol = as.character(data2c$ncol)
 
-data2c %>% ggplot(aes(x = abs(IE+ 1e-6), fill = Type)) + geom_histogram() + facet_wrap(.~StateVar) + scale_x_log10() + theme_classic()
-
-data2c %>% select(ID, Type, StateVar, IE) %>%
-  spread(key = Type, value = IE) %>%
-  mutate(DIFF = `NON-EQM`-EQM) %>%
-  filter(!is.na(DIFF)) %>%
-  ungroup() %>%
-  summarize(mean(DIFF), min(DIFF), quantile(DIFF, 0.25),quantile(DIFF, 0.5), quantile(DIFF, 0.75), max(DIFF))
-
-data2c %>% select(ID, Type, StateVar, IE) %>%
-  spread(key = Type, value = IE) %>%
-  mutate(DIFF = `NON-EQM`-EQM) %>%
-  ggplot(aes(x = abs(DIFF)+1e-6)) + geom_histogram() + facet_wrap(.~StateVar) + theme_classic() + scale_x_log10()
+# data2c %>% ggplot(aes(x = abs(IE+ 1e-6), fill = Type)) + geom_histogram() + facet_wrap(.~StateVar) + scale_x_log10() + theme_classic()
+# 
+# data2c %>% select(ID, Type, StateVar, IE) %>%
+#   spread(key = Type, value = IE) %>%
+#   mutate(DIFF = `NON-EQM`-EQM) %>%
+#   filter(!is.na(DIFF)) %>%
+#   ungroup() %>%
+#   summarize(mean(DIFF), min(DIFF), quantile(DIFF, 0.25),quantile(DIFF, 0.5), quantile(DIFF, 0.75), max(DIFF))
+# 
+# data2c %>% select(ID, Type, StateVar, IE) %>%
+#   spread(key = Type, value = IE) %>%
+#   mutate(DIFF = `NON-EQM`-EQM) %>%
+#   ggplot(aes(x = abs(DIFF)+1e-6)) + geom_histogram() + facet_wrap(.~StateVar) + theme_classic() + scale_x_log10()
 
 # Split the two types
 data2c_noneqm = data2c %>% filter(Type == "NON-EQM") %>% select(-Type)
@@ -716,11 +729,6 @@ abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 legend("topleft", legend = "F", bty = "n")
 
-
-data.frame(StateVar = c("P", "L", "N", "S", "M"),
-           ncol = c("#009E73","#E69F00","#56B4E9","#F0E442", "#0072B2"),
-           npch = c(1,2,3,4,5))
-
 # Plot all four models together ----
 
 # A. Simple model, donor-controlled
@@ -728,10 +736,14 @@ data.frame(StateVar = c("P", "L", "N", "S", "M"),
 # C. Complex model, equilibrium
 # D. Complex model, non-equilibrium
 
-png("Plots/Bothmodel2.png", width = 8, height = 8, units = "in", res = 600)
+outfinal3 = read_rds("Data/TrueLinearComplex.rds") # Load in the non-equilibrium cluster data
+
+outfinal3$ncol = as.character(outfinal3$ncol)
+
+png("Plots/Bothmodel2.png", width = 12, height = 8, units = "in", res = 600)
 
 par(oma=c(2,2,0,0))
-par(mfrow=c(2,2), mar = c(3,3,1,1))
+par(mfrow=c(2,3), mar = c(3,3,1,1))
 plot((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = outlist2, log = 'xy', col = ncol, pch = npch, cex = ncex,
      xlab= "", 
      ylab = "", type = "n", main = "Simple: Donor controlled",
@@ -743,10 +755,13 @@ abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
 abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
 abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-arrows(1e13, 1e13, 1e21, 1e2, length = 0.1)
-text(1e21, 1e-1, "Interaction effect \n increases")
+# arrows(1e13, 1e13, 1e21, 1e2, length = 0.1)
+# text(1e21, 1e-1, "Interaction effect \n increases")
 points((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = outlist2, col = ncol, pch = npch, cex = ncex)
 legend("topleft", legend = "A", bty = "n")
+legend("bottomright", legend = c("Plant", "Litter", "Inorganic N", "Soil", "Microbe"),
+       col = c("#009E73","#E69F00","#56B4E9", "#F0E442","#0072B2"), pch = 1:5, bty = "n", title = "State Variable")
+
 
 plot((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = out4, log = 'xy', col = ncol, pch = npch, cex = ncex,
      xlab= "", 
@@ -762,6 +777,9 @@ abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 points((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = out4, col = ncol, pch = npch, cex = ncex)
 legend("topleft", legend = "B", bty = "n")
 
+plot(1,1, type = "n",axes = F, ylab = "", xlab = "", main = "Complex Model Animal Biomass")
+legend("topleft", legend = "C", bty = "n")
+
 plot((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = data2c, log = 'xy', col = ncol, pch = npch, cex = ncex,
      xlab= "", 
      ylab = "", type = "n", main = "Complex: Equilibrium",
@@ -775,7 +793,7 @@ abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
 abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 points((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = data2c, col = ncol, pch = npch, cex = ncex)
-legend("topleft", legend = "C", bty = "n")
+legend("topleft", legend = "D", bty = "n")
 
 plot((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = data2c_noneqm, log = 'xy', col = ncol, pch = npch, cex = ncex,
      xlab= "", 
@@ -790,16 +808,12 @@ abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
 abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 points((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = data2c_noneqm, col = ncol, pch = npch, cex = ncex)
-legend("topleft", legend = "D", bty = "n")
-
-outfinal3 = read_rds("Data/TrueLinearComplex.rds") # Load in the non-equilibrium cluster data
-
-outfinal3$ncol = as.character(outfinal3$ncol)
+legend("topleft", legend = "E", bty = "n")
 
 plot((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = outfinal3, log = 'xy', col = ncol, pch = npch, cex = ncex,
      xlab= "", 
      ylab = "", 
-     type = "n", main = "Complex: 4-year treatment",
+     type = "n", main = "Complex: Field simulation",
      axes = F, ylim = c(1e-11, 1e5), xlim = c(1e-11, 1e5))
 axis(1, at = c(1e-11,1e-3,1e5), labels = expression(10^-11,10^-3,10^5))
 axis(2, at = c(1e-11,1e-3,1e5), labels = expression(10^-11,10^-3,10^5))
@@ -809,10 +823,55 @@ abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
 abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 points((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = outfinal3, col = ncol, pch = npch, cex = ncex)
-legend("topleft", legend = "D", bty = "n")
-legend("bottomright", legend = c("Plant", "Litter", "Inorganic N", "Soil", "Microbe"),
-       col = c("#009E73","#E69F00","#56B4E9", "#F0E442","#0072B2"), pch = 1:5)
+legend("topleft", legend = "F", bty = "n")
+
 
 mtext(text="Combined Effect (log|x|)",side=2,line=0,outer=TRUE,cex=1)
 mtext(text="Herbivore + Detritivore Effect (log|x|)",side=1,line=0,outer=TRUE,cex=1)
+dev.off()
+
+
+outlist2
+
+head(out4)
+
+datahist <- data2 %>%
+  filter(Stable == 1) %>% select(Treatment, W, H, Type) %>%
+  bind_rows(
+    read_rds("Data/TrueLinearComplex_StateVar.rds") %>% select(Treatment, H, W) %>% mutate(Type = "4-year")
+  ) %>%
+  left_join(
+    tibble(Type = c("EQM", "NON-EQM", "4-year"),
+           Type2 = c("Equilibrium", "Non-equilibrium", "Field simulation"))
+  ) %>%
+  left_join(
+    tibble(Treatment = c("N", "H", "W", "HW"),
+           Treatment2 = c("Neither", "Herbivore", "Detritivore", "Both"))
+  ) %>%
+  select(Treatment2, Type2, H, W) %>%
+  rename(Treatment = Treatment2, Type = Type2)
+
+datahist$Type <- factor(datahist$Type, levels = c("Equilibrium", "Non-equilibrium", "Field simulation"))
+datahist$Treatment <- factor(datahist$Treatment, levels = c("Neither", "Herbivore", "Detritivore", "Both"))
+
+scientific <- function(x){
+  ifelse(x==0, "0", parse(text=gsub("[+]", "", gsub("e", " %*% 10^", scales::scientific_format()(x)))))
+}
+
+scientific2 <- function(x){
+  ifelse(x==0, "0", parse(text=gsub("1 %*% ","",x = gsub("[+]", "", gsub("e", " %*% 10^", scales::scientific_format()(x))), fixed = T)))
+}
+
+png("Plots/complex_model_HW.png", width = 6, height = 5, units = "in", res = 600)
+datahist %>%
+  gather(-Treatment, -Type, key = StateVar, value = Biomass) %>%
+  filter(Biomass > 0) %>%
+  left_join(
+    tibble(StateVar = c("H", "W"),
+           StateVar2 = c("Herbivore (Grasshopper)", "Detritivore (Earthworm)"))
+  ) %>%
+  ggplot(aes(y = Biomass, x = Treatment, fill = Type)) + geom_boxplot() + theme_classic() + scale_y_log10(labels = scientific2) + facet_wrap(.~StateVar2) + scale_fill_viridis_d()  +
+  theme(legend.position = c(0.4, 0.05),
+        legend.justification = c(0, 0),
+        legend.box = "horizontal")
 dev.off()

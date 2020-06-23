@@ -1,5 +1,5 @@
 # Analysis of cluster data
-# Apr 11 2020
+# June 23 2020
 
 require(tidyverse)
 verbose = F
@@ -92,8 +92,7 @@ data3 <- data2 %>% select(-PARS, -YSTABLE, -Run2) %>% filter(time!=-1) %>% renam
                Treatment = c("N", "W", "H", "HW", "RmW", "Rt", "RmH",
                              "RtH"))
   ) %>% select(-TreatmentN) %>%
-  select(time, Treatment, Expt,Run, W,P,H,M,N) %>%
-  gather(- Expt, -Treatment, -time, -Run, key=StateVar, value=Model)
+  select(time, Treatment, Expt,Run, W,P,H,M,N)
 
 PARMS = data2 %>% select(PARS, Run) %>% 
   mutate(NPAR = rep(c(names(params), rep("REMOVE", 127)), 
@@ -110,38 +109,16 @@ rm(data2, PARMS)
 # calculate median absolute deviation (instead of standard deviation) for unique model runs
 # based on van der Vaart et al. 2015
 
-# The full dataset is too big to run, so I need to do it in parts
-
-
+# The full dataset is too big to run, so I need to do it in parts. I will work with it by state variable
 
 write_rds(data3)
 
-# Decide whether to use experiment data, extra field data (i.e. 1-m^2 plots) or both. I use both in the manuscript
-useexptdata = T
-useextradata = T
-
-MSD = data3 %>% group_by(Expt,StateVar) %>% 
-  summarize(Msd = mad(Model))
-
-if(useexptdata){
-  if(useextradata){
-    data4 = data3 %>% left_join(
-      ) 
-  }else{
-    data4 = data3 %>% left_join(
-      data3 %>% group_by(Expt,StateVar) %>% 
-        summarize(Msd = mad(Model)))%>%
-      filter(Treatment %in% c("N", "H", "W",  "HW"))
-    }
-  
-}else{
-  data4 = data3 %>% left_join(
-    data3 %>% group_by(Expt,StateVar) %>% 
-      summarize(Msd = mad(Model)))%>%
-    filter(Treatment %in% c("RmH", "RmW", "Rt",  "RtH"))
-}
-
-rm(data3)
+MSD = data3 %>% group_by(Expt) %>%
+  summarise(W = mad(W),
+            P = mad(P),
+            H = mad(H),
+            M = mad(M),
+            N = mad(N))
 
 # calculate mean of each treatment by StateVar by time in the model and mean of each variable
 
@@ -155,33 +132,68 @@ datatomodel3 = datatomodel2 %>%
            ) %>%
   # Get rid of experimental time before model "treatments" are imposed (i.e before 290 days)
   filter(time != 114)
-
   
-(Nobs = length(unique(data4$Run))) # Number of runs
+(Nobs = length(unique(data3$Run))) # Number of runs
 (cut = (50/Nobs)) # Cut off to get 50 best models
 
-errord = datatomodel3 %>% left_join(data4) %>%
-  filter(!is.na(Model)) %>% # remove any cases without simulation
-  filter(Msd !=0) %>% # remove hopper treatments where standard deviation is zero by definition
-  group_by(Run) %>% # create group by Run so standardize function works
-  summarize(fit = sqrt(sum(((Model-mBio)/Msd)^2))) %>% # function for error ==> minimum is better
+# Create dataframe to hold the error data
+
+errord = tibble(Run = unique(data3$Run))
+
+SV = c("W", "P", "H", "M", "N")
+for(i in 1:5){
+  assign(paste0("errord", SV[i]), 
+         data3[,c("Run","time", "Treatment","Expt",SV[i])] %>%
+           rename(Model = SV[i]) %>%
+           right_join(
+             datatomodel3 %>% filter(StateVar == SV[i]) %>% select(time, Treatment, mBio)
+           ) %>%
+           left_join(
+             MSD %>% select(Expt, SV[i]) %>% rename(Msd = SV[i])
+           ) %>%
+           filter(!is.na(Model)) %>% # remove any cases without simulation
+           filter(Msd !=0) %>% # remove hopper treatments where standard deviation is zero by definition
+           group_by(Run) %>% # create group by Run so standardize function works
+           summarize(fit = sqrt(sum(((Model-mBio)/Msd)^2)))
+         )
+}
+
+errord = errordH %>% rename(H = fit) %>%
+  full_join(
+    errordW %>% rename(W = fit)
+  ) %>%
+  full_join(
+    errordP %>% rename(P = fit)
+  ) %>%
+  full_join(
+    errordN %>% rename(N = fit)
+  ) %>%
+  full_join(
+    errordM %>% rename(M = fit)
+  )
+
+rm(errordH, errordM, errordN, errordP, errordW)
+
+errord = errord %>% mutate(fit = H + W + P + N + M) %>%
+  select(Run, fit) %>%
   mutate(Best = ifelse(fit < quantile(fit, cut), "Yes", "No"))
 
 table(errord %>% select(Best)) # Confirm that there are only 50 Best runs
 
 # Save ID of selected Runs if you want
-if(F){
+if(T){
   errord %>% filter(Best == "Yes") %>% write_csv(paste0("Data/selected_runs_", Sys.Date(),".csv"))
 }
 
 # calculate R2 by treatment using the average model runs of best models
-
 bestruns = errord %>% filter(Best=="Yes") %>% select(Run) %>% pull()
 
-data5 = data4[data4$Run %in% bestruns,]
-data5$Msd = NULL
+data5 = data3[data3$Run %in% bestruns,]
+data5 = as_tibble(data5) %>%
+  select(-Expt) %>%
+  gather(-time, -Treatment, -Run, key = StateVar, value = Model)
 
-(databest = data5 %>%
+(databest = data5  %>%
   group_by(Treatment, time, StateVar) %>%
   summarize(Model = median(Model)) %>%
   ungroup() %>%
@@ -209,8 +221,6 @@ variable_names_Expt <- c(
   "1" = "Other field data",
   "2" = "Cage experiment"
 )
-
-rm(data4)
 
 # Plot results of selection -----------------------------------------------
 
@@ -294,11 +304,9 @@ png(paste0("modelresults_",Sys.Date(),"/","state_var_dist_", Sys.Date(),".png"),
 statevardist
 dev.off()
 
-rm(data5)
-
 # Look at parameter matches
-parVT = PARMS %>% left_join(errord) %>% 
-  filter(!NPAR %in% c("kappa","Tref_W", "Tref_P") & !is.na(fit))
+parVT = read_rds("Data/PARMS_2020-06-22.rds") %>% left_join(errord) %>% 
+  filter(!NPAR %in% c("Kappa","Tref_W", "Tref_P") & !is.na(fit))
 
 pvec = unique(parVT$NPAR)
 sigvec = rep(-1, length(pvec))
@@ -349,9 +357,15 @@ dev.off()
 
 rm(par_plot, parVT)
 
+rm(data3)
+
 # Calculate distribution of feedback size ----
 
 # The following analysis produces the complex model data used in the simple model script to produce a comparison with the simple model. It also calculates the interaction effect size relative to the herbivore effect size and detritvore effect size 
+
+data2 <- readRDS("Data/fullmodeloutput_2020-06-22.rds")
+BEST <- read_csv("Data/selected_runs_2020-06-22.csv", 
+                 col_types = cols(Run = col_character()))
 
 # Clean up the data
 data3 = data2 %>% select(-PARS, -YSTABLE, -Run2) %>% filter(time!=-1) %>% rename(TreatmentN = Treatment) %>%
@@ -366,14 +380,16 @@ data3 = data2 %>% select(-PARS, -YSTABLE, -Run2) %>% filter(time!=-1) %>% rename
 runID = data3 %>% select(-time, -Treatment) %>% gather(-Run, key = StateVar, value = Biomass) %>%
   mutate(Biomass = ifelse(Biomass < 0, 0,1)) %>%
   group_by(Run) %>%
-  summarize(Total = sum(Biomass)) %>% filter(Total == 560) %>% select(Run)
+  summarize(Total = sum(Biomass)) %>% 
+  filter(Total == 560) %>% select(Run) %>%
+  filter(Run != "9481143743947965") # Get rid of problem Run!
 
 out0 = runID %>%
   left_join(
     data3
   ) %>%
   left_join(
-    errord %>% select(Run, Best)
+    BEST %>% select(Run, Best)
   ) %>%
   filter(Best == "Yes") %>%
   gather(-time, -Treatment, -Run, - Best, key = StateVar, value = Biomass) %>%
@@ -393,7 +409,7 @@ png(paste0("modelresults_",Sys.Date(),"/interactioneffect_simple.png"), width = 
 gt = out0 %>% gather(-time, -Run, -StateVar, key = Effect, value = value) %>%
   filter(time == 1395) %>%
   mutate(value = 100*abs(value) + 1e-6) %>% group_by(Effect) %>% summarise(X = median(value)) %>%
-  mutate(Y = c(0.75, 0.40, 0.45)) %>%
+  mutate(Y = c(0.5, 0.40, 0.45)) %>%
   mutate(t = signif(X, 2))
 
 out0 %>% gather(-time, -Run, -StateVar, key = Effect, value = value) %>%
@@ -405,28 +421,32 @@ out0 %>% gather(-time, -Run, -StateVar, key = Effect, value = value) %>%
   scale_x_log10(name = "Effect (proportion of control)", labels = scientific) + 
   scale_fill_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Herbivore", "Detritivore", "Interaction"), name = "Effect") +
   scale_color_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Herbivore", "Detritivore", "Interaction"), name = "Effect") +
-  theme(legend.position = c(0.3, 0.7),
+  theme(legend.position = c(0.25, 0.75),
         legend.justification = c(1, 0),
         legend.box = "horizontal") + ylab("Density")
 dev.off()
 
+rm(out0)
+
+# Prepare the data for comparison with the simple model
+(MAXTIME = max(data3$time))
 
 out1 = runID %>%
   left_join(
-    data3
+    data3 %>% select(-H, -W) %>% filter(time == MAXTIME) %>% select(-time) 
   ) %>%
-  left_join(
-    errord %>% select(Run, Best)
-  ) %>%
-  gather(-time, -Treatment, -Run, - Best, key = StateVar, value = Biomass) %>%
+  gather(-Treatment, -Run, key = StateVar, value = Biomass) %>%
   spread(key = Treatment, value = Biomass) %>% 
-  # filter(N > 1e-04) %>%
   mutate(IE = (HW - H - W + N)) %>%
   mutate(WE = (W - N), HE = (H - N)) %>% 
   mutate(IEpred = WE + HE, IEacc = HW - N) %>%
-  select(time, Run, StateVar, Best, IE, WE, HE, IEacc, IEpred) %>% 
-  filter(!(StateVar %in% c("W", "H"))) 
+  select(Run, StateVar, IE, WE, HE, IEacc, IEpred) %>%
+  left_join(BEST) %>%
+  select(-fit) %>%
+  mutate(Best = ifelse(is.na(Best),"No", Best))
 
+  # 5,348,160
+  
 out2 = out1 %>%
   left_join(
     data.frame(StateVar = c("P", "L", "N", "S", "M"),
@@ -438,9 +458,7 @@ out2 = out1 %>%
                ncex = c(1, 0.5))
   )
 
-dim(out2)
-
-out3 = out2[1:(5*10000),]
+out3 = out2[1:(5*10000),] # First 10,000 used for comparison to the simple model
 
 out4 = out2 %>% filter(Best == "Yes")
 
@@ -448,6 +466,15 @@ out3 = out3 %>% bind_rows(out4) %>% distinct()
 
 # This is the data that is used in the simple model script to plot the comparison
 write_rds(out3, "Data/TrueLinearComplex.rds")
+
+out3 %>% select(Run) %>% 
+  left_join(
+    data3 %>% filter(time == MAXTIME)
+  ) %>% 
+  select(-time) %>%
+  write_rds("Data/TrueLinearComplex_StateVar.rds")
+  
+
 
 rm(data3)
 
@@ -465,8 +492,7 @@ variable_names <- c(
 
 # Plot for the best fitting parameter sets only
 png(paste0("modelresults_",Sys.Date(),"/interactioneffect.png"), width = 8, height = 5, units = "in", res = 600)
-out1 %>% filter(Best == "Yes") %>% select(-Best, -IEacc, -IEpred) %>% gather(-time, -Run, -StateVar, key = Effect, value = value) %>%
-  filter(time == 1395) %>%
+out1 %>% filter(Best == "Yes") %>% select(-Best, -IEacc, -IEpred) %>% gather(-Run, -StateVar, key = Effect, value = value) %>%
   mutate(value = 100*abs(value) + 1e-6) %>%
   ggplot(aes(x = value, fill = Effect)) + geom_density(alpha = 0.7) + theme_classic() + 
   facet_wrap(.~StateVar,labeller=labeller(StateVar = variable_names)) +
@@ -478,7 +504,7 @@ out1 %>% filter(Best == "Yes") %>% select(-Best, -IEacc, -IEpred) %>% gather(-ti
 dev.off()
 
 # Plot for all parameter sets
-effectplot2 = out1 %>% select(-Best, -IEacc, -IEpred) %>% gather(-time, -Run, -StateVar, key = Effect, value = value) %>%
+effectplot2 = out1 %>% select(-Best, -IEacc, -IEpred) %>% gather(-Run, -StateVar, key = Effect, value = value) %>%
   mutate(value = 100*abs(value) + 1e-6) %>%
   ggplot(aes(x = value, fill = Effect)) + geom_density(alpha = 0.7) + theme_classic() + facet_wrap(.~StateVar, scale = "free",labeller=labeller(StateVar = variable_names)) + scale_x_log10(name = "Effect") + scale_fill_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Grasshopper", "Earthworm", "Interaction"), name = "Effect (%)")
 
@@ -486,53 +512,13 @@ png(paste0("modelresults_",Sys.Date(),"/interactioneffect2.png"), width = 8, hei
 effectplot2
 dev.off()
   
-# Test whether interaction effect is always smaller than the individual effects of herbivores and detritivores
+# Test whether interaction effect is always smaller than the individual effects of herbivores and detritivores at the end of the simulation
 test1 = out1 %>% filter(Best == "Yes") %>% mutate(IW = -abs(IE) + abs(WE), IH = -abs(IE) + abs(HE)) %>%
   mutate(IW = IW > 0, IH = IH >0)
 
 table(test1$IW,test1$IH)
 
-test1 = out1 %>% mutate(IW = -abs(IE) + abs(WE), IH = -abs(IE) + abs(HE)) %>%
+test1 = out1 %>% mutate(IW = -abs(IE) + abs(WE), IH = -abs(IE) + abs(HE)) %>% filter(abs(HE) + abs(WE) != 0) %>%
   mutate(IW = IW > 0, IH = IH >0)
 
 table(test1$IW,test1$IH)
-
-# Test if the interaction effects scale with H and W population sizes ----
-
-sca1 = runID %>%
-  left_join(
-    data3
-  ) %>%
-  left_join(
-    errord %>% select(Run, Best)
-  ) %>%
-  filter(Best == "Yes") %>%
-  gather(-time, -Treatment, -Run, - Best, key = StateVar, value = Biomass) %>%
-  spread(key = Treatment, value = Biomass) %>% 
-  mutate(IE = (HW - H - W + N)/N) %>%
-  mutate(WE = (W - N)/N, HE = (H - N)/N) %>%
-  filter(time == 1395)
-
-sca2 = sca1 %>%
-  filter(!StateVar %in% c("H", "W")) %>%
-  select(Run, StateVar, IE, WE, HE) %>%
-  left_join(
-    sca1 %>%
-      filter(StateVar %in% c("H", "W")) %>%
-      select(Run, StateVar, HW) %>%
-      spread(key = StateVar, value = HW) %>%
-      rename(Hn = H, Wn = W)
-  )
-
-png(paste0("modelresults_",Sys.Date(),"/","HWpops_vs_IE", Sys.Date(),".png"), width=8,
-    height=10, units="in", res=300)
-
-ggpubr::ggarrange(
-  sca2 %>%
-    ggplot(aes(x = Hn, y = IE)) + geom_point() + facet_wrap(.~StateVar, scales = "free") + theme_classic() + stat_smooth(),
-  
-  sca2 %>%
-    ggplot(aes(x = Wn, y = IE)) + geom_point() + facet_wrap(.~StateVar, scales = "free") + theme_classic() + stat_smooth(),
-  ncol = 1, nrow = 2
-)
-dev.off()
