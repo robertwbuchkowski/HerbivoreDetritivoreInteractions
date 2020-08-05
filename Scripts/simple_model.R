@@ -831,6 +831,86 @@ mtext(text="Herbivore + Detritivore Effect (log|x|)",side=1,line=0,outer=TRUE,ce
 dev.off()
 
 
+# Another version of the both model plot -----
+
+scientific <- function(x){
+  ifelse(x==0, "0", parse(text=gsub("[+]", "", gsub("e", " %*% 10^", scales::scientific_format()(x)))))
+}
+
+scientific3 <- function(x){
+  x = signif(x, digits = 1)
+  ifelse(x==0, "0", gsub("[+]", "", gsub("e", " %*% 10^", scales::scientific_format()(x))))
+}
+
+selected_pool = "P"
+
+IEplot = outlist2 %>% 
+  filter(nvec == selected_pool) %>%
+  mutate(IEscale = abs(IE)+1e-6,
+         ID = "Simple: Donor-controlled") %>%
+  select(IEscale, ID) %>%
+  bind_rows(
+    out4 %>% 
+      filter(nvec == selected_pool) %>%
+      mutate(IEscale = abs(IE)+1e-6,
+             ID = "Simple: Lotka-Volterra") %>%
+      select(IEscale, ID)
+    ) %>% 
+  bind_rows(
+    data2c %>% 
+      filter(StateVar == selected_pool) %>%
+      ungroup() %>%
+      mutate(IEscale = abs(IE)+1e-6,
+             ID = "Complex: Equilibrium") %>%
+      select(IEscale, ID)
+  ) %>% 
+  bind_rows(
+    data2c_noneqm %>% 
+      filter(StateVar == selected_pool) %>%
+      ungroup() %>%
+      mutate(IEscale = abs(IE)+1e-6,
+             ID = "Complex: Non-equilibrium") %>%
+      select(IEscale, ID)
+  ) %>% 
+  bind_rows(
+    outfinal3 %>% 
+      filter(StateVar == selected_pool) %>%
+      ungroup() %>%
+      mutate(IEscale = abs(IE)+1e-6,
+             ID = "Complex: Field simulation") %>%
+      select(IEscale, ID)
+  )
+  
+IEtext = IEplot %>% group_by(ID) %>%
+  summarise(X = median(IEscale)) %>%
+  mutate(Y = c(0.3, 0.5, 0.4, 0.6, 0.2)+ 0.05) %>%
+  mutate(t = ifelse(X < 2e-6, 0, X)) %>%
+  mutate(t = scientific3(t)) %>%
+  mutate(X2 = X*100)
+
+IEarrow = IEplot %>% group_by(ID) %>%
+  summarise(X1 = quantile(IEscale, 0.95)) %>%
+  full_join(
+    IEtext
+  ) %>%
+  select(ID, X, X1, Y) %>%
+  mutate(Y = Y - 0.05) %>%
+  pivot_longer(c(X, X1), names_to = "type", values_to = "X")
+
+png(paste0("Plots/Figure5_",selected_pool,".png"), width = 7, height = 4, units = "in", res = 600)
+IEplot %>% ggplot(aes(x = IEscale, fill = ID)) + 
+  geom_density(alpha = 0.7) + 
+  geom_text(aes(x = X2, y = Y, label = t, col = ID),data = IEtext, parse = T) + 
+  geom_line(aes(x = X, y = Y, color = ID), data = IEarrow, arrow = arrow(length = unit(0.3, "cm"))) + 
+  theme_classic() + 
+  scale_x_log10(labels = scientific, name = "Interaction effect onto plants") + 
+  scale_fill_manual(name = "Simulation Type", values = c("#009E73","#E69F00","#56B4E9", "#F0E442","#0072B2"), breaks = c("Simple: Donor-controlled", "Simple: Lotka-Volterra","Complex: Equilibrium","Complex: Non-equilibrium","Complex: Field simulation")) + 
+  scale_color_manual(guide = F, values = c("#009E73","#E69F00","#56B4E9", "#F0E442","#0072B2"), breaks = c("Simple: Donor-controlled", "Simple: Lotka-Volterra","Complex: Equilibrium","Complex: Non-equilibrium","Complex: Field simulation")) +
+  ylab("Density")
+dev.off()
+
+# Get the abundance data from the complex model -----
+
 outlist2
 
 head(out4)
@@ -853,10 +933,6 @@ datahist <- data2 %>%
 
 datahist$Type <- factor(datahist$Type, levels = c("Equilibrium", "Non-equilibrium", "Field simulation"))
 datahist$Treatment <- factor(datahist$Treatment, levels = c("Neither", "Herbivore", "Detritivore", "Both"))
-
-scientific <- function(x){
-  ifelse(x==0, "0", parse(text=gsub("[+]", "", gsub("e", " %*% 10^", scales::scientific_format()(x)))))
-}
 
 scientific2 <- function(x){
   ifelse(x==0, "0", parse(text=gsub("1 %*% ","",x = gsub("[+]", "", gsub("e", " %*% 10^", scales::scientific_format()(x))), fixed = T)))
