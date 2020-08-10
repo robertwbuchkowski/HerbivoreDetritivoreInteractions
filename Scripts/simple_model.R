@@ -906,7 +906,10 @@ IEplot %>% ggplot(aes(x = IEscale, fill = ID)) +
   scale_x_log10(labels = scientific, name = "Interaction effect onto plants") + 
   scale_fill_manual(name = "Simulation Type", values = c("#009E73","#E69F00","#56B4E9", "#F0E442","#0072B2"), breaks = c("Simple: Donor-controlled", "Simple: Lotka-Volterra","Complex: Equilibrium","Complex: Non-equilibrium","Complex: Field simulation")) + 
   scale_color_manual(guide = F, values = c("#009E73","#E69F00","#56B4E9", "#F0E442","#0072B2"), breaks = c("Simple: Donor-controlled", "Simple: Lotka-Volterra","Complex: Equilibrium","Complex: Non-equilibrium","Complex: Field simulation")) +
-  ylab("Density")
+  ylab("Density") +
+  theme(legend.position = c(0.9, 0.5),
+        legend.justification = c(1, 0),
+        legend.box = "horizontal")
 dev.off()
 
 # Get the abundance data from the complex model -----
