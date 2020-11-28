@@ -43,40 +43,8 @@ if(loadcsv){ # Only important if you are loading in data from the raw outputs of
 data2 <- readRDS("Data/fullmodeloutput_2020-06-22.rds")
 # 277,499 unique runs with full data
 
-# Baseline parameter values, repeated for convenience
-params<- c(Vlm_mod = 8e-6,
-           Vsm_mod = 4e-06,
-           Klm_mod = 0.143,
-           Ksm_mod = 0.143,
-           Vlw = 2.4e-06,#2.4e-06, #2.4e-05 before correction to Type I
-           Vsw = 4.1e-05,#4.1e-05,#0.00462 before correction to Type I
-           Vpf = 0.001/0.00018, #From JRS project 0.03
-           Kpf = 0.08, #From JRS project 0.006
-           Vhp = 0.01, #From JRS project 0.0025 - 0.0029
-           SUEh = 0.7,
-           SUE = 0.50,
-           SUEws = 0.01,
-           SUEwl = 0.02,
-           SUEwm = 0.3,
-           q = 0.1,
-           IN= 0.02,
-           l = 0.0001,
-           tm = 0.01,
-           tw = 0.00001,
-           th = 20, # based on surivival from Schmitz lab experiments
-           fi=0.6, #0.6,
-           fo=0.001, #0.003,
-           tp = 0.000005, #0.00008,
-           Ea = 0.25,
-           Kappa = 8.62e-05,
-           B = 2493,
-           D = 26712,
-           Vslope = 0.063,
-           Kslope = 0.007,
-           Vint = 5.47,
-           Kint = 3.19,
-           Tref_W = 288.15,
-           Tref_P = 297.65)
+# Baseline parameter values, loaded for use in comparisons
+source("Scripts/parameters.R"); rm(yint)
 
 # get stable state variable values
 

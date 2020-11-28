@@ -5,29 +5,23 @@
 library(FME) # version 1.3.5
 library(tidyverse)
 
+# How many replicates do you want?
+REPS = 10000
+
+# Show the equilibrium of the complex model to help with parameter conversion for these models:
+
+Equilibrium = c(74.6263897,16.2370121,6.7150554,10.3387229,0.1480483,80.5771975,0.0134762)
+names(Equilibrium) = c("P","L" ,"M","W","N","S","H")
+rm(Equilibrium)
+
 # Analysis of simple DC model ----
 
-params = c(Vpn = 1,
-           tp = 1,
-           th = 1,
-           Vhp = 1,
-           IN = 1,
-           q = 0.5,
-           k = 1,
-           Vwl = 1,
-           tw = 1,
-           tp = 1,
-           l = 0.5,
-           eh = 0.8,
-           ew = 0.5)
-
 # A function that calculates the equilibrium of the simple model give input parameters.
-
-# m1 = no animals
-# m2 = Detritivores
-# m3 = Herbivores
-# m4 = Herbivores and detritivores
-
+# nvec = the list of state variables that matches the order of equilibrium expressions in the following models
+# m1 = no animals in the model
+# m2 = Detritivores only in the model
+# m3 = Herbivores only in the model
+# m4 = Herbivores and detritivores both in the model
 test <-function(parms){
   with(as.list(c(parms)),{
     
@@ -75,108 +69,35 @@ test <-function(parms){
   
 }
 
-# Generate lists to save the data
-outlist <- vector(mode = "list", length = 10000)
-paramlist <- vector(mode = "list", length = 10000)
-simlist <- vector(mode = "list", length = 10000)
-
-# Create dynamic models 1-4 (as above) to simulate the non-equilibrium dynamics
-
-simpleDCmodel1 <- function(t,y, pars){
-  with(as.list(c(pars,y)),{
-    dP = Vpn*Iorg - tp*P
-    dIorg = IN - q*Iorg + k*L - Vpn*Iorg
-    dL = tp*P - k*L - l*L
-    
-    return(list(c(dP, dIorg, dL)))
-  })
-}
-
-simpleDCmodel2 <- function(t,y, pars){
-  with(as.list(c(pars,y)),{
-    dP = Vpn*Iorg - tp*P;
-    dIorg = IN - q*Iorg + k*L - Vpn*Iorg + (1 - ew)*Vwl*L
-    dL = tw*W + tp*P - k*L - l*L - Vwl*L
-    dW = ew*Vwl*L - tw*W
-    
-    return(list(c(dP, dIorg, dL, dW)))
-  })
-}
-
-simpleDCmodel3 <- function(t,y, pars){
-  with(as.list(c(pars,y)),{
-    dP = Vpn*Iorg - tp*P - Vhp*P
-    dIorg = IN - q*Iorg + k*L - Vpn*Iorg + (1 - eh)*Vhp*P
-    dL = th*H + tp*P - k*L - l*L
-    dH = eh*Vhp*P - th*H
-    
-    return(list(c(dP, dIorg, dL, dH)))
-  })
-}
-
-simpleDCmodel4 <- function(t,y, pars){
-  with(as.list(c(pars,y)),{
-    dP = Vpn*Iorg - tp*P - Vhp*P
-    dIorg = IN - q*Iorg + k*L - Vpn*Iorg + (1 - eh)*Vhp*P + (1 - ew)*Vwl*L
-    dL = tw*W + th*H + tp*P - k*L - l*L - Vwl*L
-    dH = eh*Vhp*P - th*H
-    dW = ew*Vwl*L - tw*W
-    
-    return(list(c(dP, dIorg, dL, dH, dW)))
-  })
-}
-
+# Generate lists to save the data for 10,000 parameter sets
+outlist <- vector(mode = "list", length = REPS)
+paramlist <- vector(mode = "list", length = REPS)
 
 # Run 10,000 random parameter sets
 t1 = Sys.time()
-for(i in 1:10000){
+for(i in 1:REPS){
   
-  params = c(Vpn = rlnorm(1,meanlog = 1, sdlog = 10),
-             tp = rlnorm(1,meanlog = 1, sdlog = 10),
-             th = rlnorm(1,meanlog = 1, sdlog = 10),
-             Vhp = rlnorm(1,meanlog = 1, sdlog = 10),
-             IN = rlnorm(1,meanlog = 1, sdlog = 10),
-             q = rlnorm(1,meanlog = 1, sdlog = 10),
-             k = rlnorm(1,meanlog = 1, sdlog = 10),
-             Vwl = rlnorm(1,meanlog = 1, sdlog = 10),
-             tw = rlnorm(1,meanlog = 1, sdlog = 10),
-             tp = rlnorm(1,meanlog = 1, sdlog = 10),
-             l = rlnorm(1,meanlog = 1, sdlog = 10),
-             eh = runif(1, 0.01, 1),
-             ew = runif(1, 0.01, 1))
+  # Randomly draw the new parameters: See notes for how they compare to the complex model
+  params = c(Vpn = rlnorm(1,meanlog = log(0.3794274), sdlog = 0.3536), # Equals A_P*Vpf*P/(Kpf + N*) from the complex model
+             tp = rlnorm(1,meanlog = log(0.000005/74.6263897), sdlog = 0.3536), # Equals tp/P* in the complex model
+             th = rlnorm(1,meanlog = log(1484.098), sdlog = 0.3536), # Equals th/H* in the complex model
+             Vhp = rlnorm(1,meanlog = log(0.0001888764), sdlog = 0.3536), # Equals A_W*Vhp*H calculated at 25C in the complex model
+             IN = rlnorm(1,meanlog = log(0.02), sdlog = 0.3536), # Same as the complex model
+             q = rlnorm(1,meanlog = log(0.1), sdlog = 0.3536),# Same as the complex model
+             k = rlnorm(1,meanlog = log(0.005713002), sdlog = 0.3536), # Equals: Vlm*M/(Klm + M) + A_W*Vlw*W, where Vlm and Klm are modified by temperature so they are calculated at 25C
+             Vwl = rlnorm(1,meanlog = log(3.477668e-05), sdlog = 0.3536), # Equals A_W*Vwl*W calculated at 25C in the complex model
+             tw = rlnorm(1,meanlog = log(9.672375e-07), sdlog = 0.3536), # Equals tw/W* in the complex model
+             l = rlnorm(1,meanlog = log(1e-4), sdlog = 0.3536), # Same as the complex model
+             eh = rlnorm(1,meanlog = log(0.7), sdlog = 0.3536), # Same as the complex model
+             ew = rlnorm(1,meanlog = log(0.02), sdlog = 0.3536)) # Same as SUEwl in the complex model
   
+  # Save the new parameters
   paramlist[[i]] = c(params, N = i)
   
+  # Calculate the equilibrium and save it
   outlist[[i]] = cbind(test(params), N = i)
-  
-  yint = test(params)$m4
-  names(yint) = c("P", "Iorg", "L","H", "W")
-  # yint = yint*c(0.05, 1, 0.05, 1, 0.05)
-  if(F){
-    mm1 = ode(y = yint[1:3], times = c(seq(1,1.9, 0.1),seq(2,(365*4), length = 10)), func = simpleDCmodel1, parms = params)
-    mm2 = ode(y = yint[c(1,2,3,5)], times = c(seq(1,1.9, 0.1),seq(2,(365*4), length = 10)), func = simpleDCmodel2, parms = params)
-    mm3 = ode(y = yint[1:4], times = c(seq(1,1.9, 0.1),seq(2,(365*4), length = 10)), func = simpleDCmodel3, parms = params)
-    mm4 = ode(y = yint, times = c(seq(1,1.9, 0.1),seq(2,(365*4), length = 10)), func = simpleDCmodel4, parms = params)
-    
-    mm5 = (mm4[,c(1:4)] - mm3[,c(1:4)] - mm2[,c(1:4)] + mm1[,c(1:4)])
-    mm5[,1] = mm4[,1]
-    mm5 = data.frame(mm5)
-    mm5[,"Effect"] = "IE"
-    
-    mm6 = (mm2[,c(1:4)] - mm1[,c(1:4)])
-    mm6[,1] = mm4[,1]
-    mm6 = data.frame(mm6)
-    mm6[,"Effect"] = "WE"
-    
-    mm7 = (mm3[,c(1:4)] - mm1[,c(1:4)])
-    mm7[,1] = mm4[,1]
-    mm7 = data.frame(mm7)
-    mm7[,"Effect"] = "HE"
-    
-    simlist[[i]] = cbind(rbind(mm5, mm6, mm7), N = i)
-  }
-
-  
+ 
+  # Create a update note for the user to see the progress
   if(i %% 500 == 0){
     print(paste("Done", i, "in:"))
     print(round(Sys.time() - t1))
@@ -209,89 +130,36 @@ outlist2[,"npch"] = ifelse(outlist2$nvec == "P", 1,
 
 outlist2[,"ncex"] = ifelse(outlist2$Best == 1, 1, 0.5)
 
-png("Plots/DCmodel.png", width = 8, height = 5, units = "in", res = 600)
-par(mfrow=c(1,2))
-plot((abs(IE+1e-6))~(abs(WE+1e-6)), data = outlist2, log = 'xy', col = ncol, pch = npch,
-     xlab= "Detritivore Effect (log|WE|)", ylab = "Interaction Effect (log|IE|)", cex = ncex)
-abline(a = 0, b = 1, lty = 2, lwd = 2)
-abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
-abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
-abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-legend("topleft", legend = c("Plant", "Litter", "Inorganic N"),
-       col = c("#009E73","#E69F00","#56B4E9"), pch = 1:3)
-plot((abs(IE+1e-6))~(abs(HE+1e-6)), data = outlist2, log = 'xy', col = ncol, pch = npch,
-     xlab= "Herbivore Effect (log|HE|)", ylab = "", cex = ncex)
-abline(a = 0, b = 1, lty = 2, lwd = 2)
-abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
-abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
-abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-dev.off()
-
-write_csv(outlist2, "Data/simplemodel_DC.csv")
-
-# Create plot of simulations over time
-
-simlist = do.call("rbind", simlist)
-
-simlist %>% gather(-time, -N, -Effect, key = StateVar, value = value) %>%
-  ggplot(aes(x = time, y = value, color = Effect, group = paste0(N, Effect))) + facet_grid(Effect~StateVar, scales = "free") + geom_line() + theme_classic()
-
-aggregate(cbind(P, Iorg, L) ~ time, data = simlist2, FUN = mean)
-
-# Create the other plot
-outlist3 = outlist2
-
-outlist3[,"IEm1"] = signif(abs(outlist2[,"IE"]/ outlist2[,"m1"]), digits = 6)
-
-outlist3 = outlist3[order(outlist3$IEm1),c("nvec", "IEm1")]
-dim(outlist3)
-
-tempt = tibble(nvec = rep("A", 30000),
-           IEm1 = rep(1, 30000))
-
-tempt$nvec = outlist3$nvec
-tempt$IEm1 = outlist3$IEm1
-
-tempt %>% arrange(IEm1) %>% group_by(nvec) %>%
-  mutate(cumsum = cumsum(IEm1)) %>% 
-  left_join(
-    tempt %>% group_by(nvec) %>% summarize(tot = sum(IEm1))
-  ) %>%
-  mutate(prop = cumsum/tot) %>%
-  select(nvec, IEm1, prop) %>%
-  distinct() %>%
-  ggplot(aes(x = IEm1, y = prop, color = nvec)) + geom_line() + theme_classic()
-
+write_csv(outlist2, "Data/simplemodel_DC_Nov2020.csv")
 
 # Analysis of simple LV model ----
 
 # A function that runs the simple model with Lotka-Volterra functional responses
+# nvec = the list of state variables that matches the order of equilibrium expressions in the following models
+# m1 = no animals in the model
+# m2 = Detritivores only in the model
+# m3 = Herbivores only in the model
+# m4 = Herbivores and detritivores both in the model
 
-# m1 = no animals
-# m2 = Detritivores
-# m3 = Herbivores
-# m4 = Herbivores and detritivores
-
+# A function to run the models:
 test2 <- function(Ni){
   k = 1 
   
   while(k == 1){ # Draw parameters until a stable version, as judged by the principle eigenvalue of the Jacobian matrix, is found
     
-    params = c(Vpn = rlnorm(1,meanlog = 1, sdlog = 10),
-               tp = rlnorm(1,meanlog = 1, sdlog = 10),
-               th = rlnorm(1,meanlog = 1, sdlog = 10),
-               Vhp = rlnorm(1,meanlog = 1, sdlog = 10),
-               IN = rlnorm(1,meanlog = 1, sdlog = 10),
-               q = rlnorm(1,meanlog = 1, sdlog = 10),
-               k = rlnorm(1,meanlog = 1, sdlog = 10),
-               Vwl = rlnorm(1,meanlog = 1, sdlog = 10),
-               tw = rlnorm(1,meanlog = 1, sdlog = 10),
-               tp = rlnorm(1,meanlog = 1, sdlog = 10),
-               l = rlnorm(1,meanlog = 1, sdlog = 10),
-               eh = runif(1, 0.01, 1),
-               ew = runif(1, 0.01, 1))
+    # Randomly draw the new parameters: See notes for how they compare to the complex model
+    params = c(Vpn = rlnorm(1,meanlog = log(0.005084359), sdlog = 0.3536), # Equals A_P*Vpf/(Kpf + N*) from the complex model
+               tp = rlnorm(1,meanlog = log(0.000005/74.6263897), sdlog = 0.3536), # Equals tp/P* in the complex model
+               th = rlnorm(1,meanlog = log(1484.098), sdlog = 0.3536), # Equals th/H* in the complex model
+               Vhp = rlnorm(1,meanlog = log(0.01401555), sdlog = 0.3536), # Equals A_W*Vhp calculated at 25C in the complex model
+               IN = rlnorm(1,meanlog = log(0.02), sdlog = 0.3536), # Same as the complex model
+               q = rlnorm(1,meanlog = log(0.1), sdlog = 0.3536),# Same as the complex model
+               k = rlnorm(1,meanlog = log(0.005713002), sdlog = 0.3536), # Equals: Vlm*M/(Klm + M) + A_W*Vlw*W, where Vlm and Klm are modified by temperature so they are calculated at 25C
+               Vwl = rlnorm(1,meanlog = log(3.363731e-06), sdlog = 0.3536), # Equals A_W*Vwl calculated at 25C in the complex model
+               tw = rlnorm(1,meanlog = log(9.672375e-07), sdlog = 0.3536), # Equals tw/W* in the complex model
+               l = rlnorm(1,meanlog = log(1e-4), sdlog = 0.3536), # Same as the complex model
+               eh = rlnorm(1,meanlog = log(0.7), sdlog = 0.3536), # Same as the complex model
+               ew = rlnorm(1,meanlog = log(0.02), sdlog = 0.3536)) # Same as SUEwl in the complex model
     
     # Model 1 
     m1 = with(as.list(c(params)),{
@@ -326,7 +194,6 @@ test2 <- function(Ni){
     )
     
     # Model 2
-    
     m2 = with(as.list(c(params)),{
       c(
         (Vpn*(-(l*tw) + ew*IN*Vwl))/(ew*q*tp*Vwl),
@@ -353,7 +220,6 @@ test2 <- function(Ni){
     )
     
     # Model 3
-    
     m3 = with(as.list(c(params)),{
       
       c(
@@ -383,7 +249,6 @@ test2 <- function(Ni){
     )
     
     # Model 4
-    
     m4 = with(as.list(c(params)),{
       
       c(
@@ -436,12 +301,12 @@ test2 <- function(Ni){
 }
 
 # Run the model
-out2 = lapply(seq(1,10000,1), FUN = test2)
+out2 = lapply(seq(1,REPS,1), FUN = test2)
 
 # Reorganize the data
-out3 = vector(mode = "list", length = 10000)
+out3 = vector(mode = "list", length = REPS)
 
-for(j in 1:10000){
+for(j in 1:REPS){
   out3[[j]] = out2[[j]][[1]]
 }
 
@@ -470,123 +335,20 @@ out4[,"npch"] = ifelse(out4$nvec == "P", 1,
 
 out4[,"ncex"] = ifelse(out4$Best == 1, 1, 0.5)
 
-png("Plots/LVmodel.png", width = 8, height = 5, units = "in", res = 600)
-par(mfrow=c(1,2))
-plot((abs(IE+1e-6))~(abs(WE+1e-6)), data = out4, log = 'xy', col = ncol, pch = npch,
-     xlab= "Earthworm Effect (log|WE|)", ylab = "Interaction Effect (log|IE|)",cex = ncex)
-abline(a = 0, b = 1, lty = 2, lwd = 2)
-abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
-abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
-abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-legend("topleft", legend = c("Plant", "Litter", "Inorganic N"),
-       col = c("#009E73","#E69F00","#56B4E9"), pch = 1:3)
-plot((abs(IE+1e-6))~(abs(HE+1e-6)), data = out4, log = 'xy', col = ncol, pch = npch,
-     xlab= "Herbivore Effect (log|HE|)", ylab = "",cex = ncex)
-abline(a = 0, b = 1, lty = 2, lwd = 2)
-abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
-abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
-abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-dev.off()
-
-write_csv(out4, "Data/simplemodel_LV.csv")
-
-# Simulate the Lotka-Volterra simple model over time 
-
-simpleLVmodel1 <- function(t,y, pars){
-  with(as.list(c(pars,y)),{
-    dP = Vpn*Iorg*P - tp*P
-    dIorg = IN - q*Iorg + k*L - Vpn*Iorg*P
-    dL = tp*P - k*L - l*L
-    
-    return(list(c(dP, dIorg, dL)))
-  })
-}
-
-simpleLVmodel2 <- function(t,y, pars){
-  with(as.list(c(pars,y)),{
-    dP = Vpn*Iorg*P - tp*P
-    dIorg = IN - q*Iorg + k*L - Vpn*Iorg*P + (1 - ew)*Vwl*L*W
-    dL = tw*W + tp*P - k*L - l*L - Vwl*L*W
-    dW = ew*Vwl*L*W - tw*W
-    
-    return(list(c(dP, dIorg, dL, dW)))
-  })
-}
-
-simpleLVmodel3 <- function(t,y, pars){
-  with(as.list(c(pars,y)),{
-    dP = Vpn*Iorg*P - tp*P - Vhp*H*P
-    dIorg = IN - q*Iorg + k*L - Vpn*Iorg*P + (1 - eh)*Vhp*P*H
-    dL = th*H + tp*P - k*L - l*L
-    dH = eh*Vhp*P*H - th*H
-    
-    return(list(c(dP, dIorg, dL, dH)))
-  })
-}
-
-simpleLVmodel4 <- function(t,y, pars){
-  with(as.list(c(pars,y)),{
-    dP = Vpn*Iorg*P - tp*P - Vhp*H*P
-    dIorg = IN - q*Iorg + k*L - Vpn*Iorg*P + (1 - eh)*Vhp*P*H + (1 - ew)*Vwl*L*W
-    dL = tw*W + th*H + tp*P - k*L - l*L - Vwl*L*W
-    dH = eh*Vhp*P*H - th*H
-    dW = ew*Vwl*L*W - tw*W
-    
-    return(list(c(dP, dIorg, dL, dH, dW)))
-  })
-}
-
-run1 = test2(1)
-
-params = run1[[2]][1:13]
-
-yint = run1[[1]]$m4[1:5]
-names(yint) = run1[[1]]$nvec[1:5]
-names(yint)[2] = "Iorg"
-
-mm1 = ode(yint[1:3], times = 1:(365*4), func = simpleLVmodel1, parms = params)
-mm2 = ode(yint[c(1,2,3,5)], times = 1:(365*4), func = simpleLVmodel2, parms = params)
-mm3 = ode(yint[1:4], times = 1:(365*4), func = simpleLVmodel3, parms = params)
-mm4 = ode(yint, times = 1:(365*4), func = simpleLVmodel4, parms = params)
-
-mm5 = mm4[,1:4] - mm3[,1:4] - mm2[,1:4] + mm1[,1:4]
-mm5[,1] = mm4[,1]
-
-mm6 = mm2[,1:4] - mm1[,1:4]
-mm6[,1] = mm4[,1]
-
-mm7 = mm3[,1:4] - mm1[,1:4]
-mm7[,1] = mm4[,1]
-
-run1[[1]][1:3, "m4"] - run1[[1]][1:3, "m3"] -run1[[1]][1:3, "m2"] + run1[[1]][1:3, "m1"]
-
-par(mfrow=c(2,2))
-plot(P~time, data = mm5, type = "l", lwd = 2, ylim = c(range(c(mm5[,"P"], mm6[,"P"], mm7[,"P"]))))
-points(P~time, data = mm6, type = "l", col = "red", lwd = 2, lty = 2)
-points(P~time, data = mm7, type = "l", col = "green", lwd = 2, lty = 3)
-
-plot(Iorg~time, data = mm5, type = "l", lwd = 2, ylim = c(range(c(mm5[,"Iorg"], mm6[,"Iorg"], mm7[,"Iorg"]))))
-points(Iorg~time, data = mm6, type = "l", col = "red", lwd = 2, lty = 2)
-points(Iorg~time, data = mm7, type = "l", col = "green", lwd = 2, lty = 3)
-
-plot(L~time, data = mm5, type = "l", lwd = 2, ylim = c(range(c(mm5[,"L"], mm6[,"L"], mm7[,"L"]))))
-points(L~time, data = mm6, type = "l", col = "red", lwd = 2, lty = 2)
-points(L~time, data = mm7, type = "l", col = "green", lwd = 2, lty = 3)
+write_csv(out4, "Data/simplemodel_LV_Nov2020.csv")
 
 # Clean out the earlier analysis -----
 
-rm(i,j, mm1,mm2,mm3,mm4,mm5,mm6,mm7, out2, out3, outlist, outlist3, paramlist, params, run1, simlist, simpleDCmodel1,simpleDCmodel2,simpleDCmodel3,simpleDCmodel4,simpleLVmodel1,simpleLVmodel2,simpleLVmodel3,simpleLVmodel4, t1, tempt, test, test2, yint)
+rm(i,j, mm1,mm2,mm3,mm4,mm5,mm6,mm7, out2, out3, outlist, outlist3, paramlist, params, run1, simlist, t1, tempt, test, test2, yint)
 
 # Load in the simple model data if necessary -----
 
-outlist2 = read_csv("Data/simplemodel_DC.csv")
-out4 = read_csv("Data/simplemodel_LV.csv")
+outlist2 = read_csv("Data/simplemodel_DC_Nov2020.csv")
+out4 = read_csv("Data/simplemodel_LV_Nov2020.csv")
 
 # Plot the most complex model ----
 
-# Load in the equilibrium cluster data (run using the script "complex_model_non-eqm_to_cluster.R")
+# Load in the equilibrium cluster data (This data is calculated using the script "complex_model_non-eqm_to_cluster.R")
 
 if(F){ # Only necessary if loading data directly from cluster. Provided data is loaded below
   dirtoload = "Model_eqm_Jun2020/"
@@ -693,20 +455,6 @@ data2c = data2b %>%
 
 data2c$ncol = as.character(data2c$ncol)
 
-# data2c %>% ggplot(aes(x = abs(IE+ 1e-6), fill = Type)) + geom_histogram() + facet_wrap(.~StateVar) + scale_x_log10() + theme_classic()
-# 
-# data2c %>% select(ID, Type, StateVar, IE) %>%
-#   spread(key = Type, value = IE) %>%
-#   mutate(DIFF = `NON-EQM`-EQM) %>%
-#   filter(!is.na(DIFF)) %>%
-#   ungroup() %>%
-#   summarize(mean(DIFF), min(DIFF), quantile(DIFF, 0.25),quantile(DIFF, 0.5), quantile(DIFF, 0.75), max(DIFF))
-# 
-# data2c %>% select(ID, Type, StateVar, IE) %>%
-#   spread(key = Type, value = IE) %>%
-#   mutate(DIFF = `NON-EQM`-EQM) %>%
-#   ggplot(aes(x = abs(DIFF)+1e-6)) + geom_histogram() + facet_wrap(.~StateVar) + theme_classic() + scale_x_log10()
-
 # Split the two types
 data2c_noneqm = data2c %>% filter(Type == "NON-EQM") %>% select(-Type)
 data2c = data2c %>% filter(Type == "EQM") %>% select(-Type)
@@ -755,8 +503,6 @@ abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
 abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
 abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
 abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-# arrows(1e13, 1e13, 1e21, 1e2, length = 0.1)
-# text(1e21, 1e-1, "Interaction effect \n increases")
 points((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = outlist2, col = ncol, pch = npch, cex = ncex)
 legend("topleft", legend = "A", bty = "n")
 legend("bottomright", legend = c("Plant", "Litter", "Inorganic N", "Soil", "Microbe"),
@@ -912,7 +658,7 @@ IEplot %>% ggplot(aes(x = IEscale, fill = ID)) +
         legend.box = "horizontal")
 dev.off()
 
-# Get the abundance data from the complex model -----
+# Get the abundance data from the complex model and plot it -----
 
 outlist2
 
