@@ -150,7 +150,7 @@ test2 <- function(Ni){
     # Randomly draw the new parameters: See notes for how they compare to the complex model
     params = c(Vpn = rlnorm(1,meanlog = log(0.005084359), sdlog = 0.3536), # Equals A_P*Vpf/(Kpf + N*) from the complex model
                tp = rlnorm(1,meanlog = log(0.000005/74.6263897), sdlog = 0.3536), # Equals tp/P* in the complex model
-               th = rlnorm(1,meanlog = log(1484.098), sdlog = 0.3536), # Equals th/H* in the complex model
+               th = rlnorm(1,meanlog = log(20), sdlog = 0.3536), # Equals th/H* in the complex model
                Vhp = rlnorm(1,meanlog = log(0.01401555), sdlog = 0.3536), # Equals A_W*Vhp calculated at 25C in the complex model
                IN = rlnorm(1,meanlog = log(0.02), sdlog = 0.3536), # Same as the complex model
                q = rlnorm(1,meanlog = log(0.1), sdlog = 0.3536),# Same as the complex model
@@ -339,7 +339,7 @@ write_csv(out4, "Data/simplemodel_LV_Nov2020.csv")
 
 # Clean out the earlier analysis -----
 
-rm(i,j, mm1,mm2,mm3,mm4,mm5,mm6,mm7, out2, out3, outlist, outlist3, paramlist, params, run1, simlist, t1, tempt, test, test2, yint)
+rm(test, test2)
 
 # Load in the simple model data if necessary -----
 
@@ -629,31 +629,21 @@ IEplot = outlist2 %>%
   
 IEtext = IEplot %>% group_by(ID) %>%
   summarise(X = median(IEscale)) %>%
-  mutate(Y = c(0.3, 0.5, 0.4, 0.6, 0.2)+ 0.05) %>%
-  mutate(t = ifelse(X < 2e-6, 0, X)) %>%
+  mutate(Y = c(0.3, 0.5, 0.4, 0.8, 0.5)+ 0.05) %>%
+  mutate(t = X) %>%
   mutate(t = scientific3(t)) %>%
-  mutate(X2 = X*100)
+  mutate(X2 = ifelse(X > 1000, X*10, X))
 
-IEarrow = IEplot %>% group_by(ID) %>%
-  summarise(X1 = quantile(IEscale, 0.95)) %>%
-  full_join(
-    IEtext
-  ) %>%
-  select(ID, X, X1, Y) %>%
-  mutate(Y = Y - 0.05) %>%
-  pivot_longer(c(X, X1), names_to = "type", values_to = "X")
-
-png(paste0("Plots/Figure5_",selected_pool,".png"), width = 7, height = 4, units = "in", res = 600)
+png(paste0("Plots/Figure5_Nov2020_",selected_pool,".png"), width = 7, height = 4, units = "in", res = 600)
 IEplot %>% ggplot(aes(x = IEscale, fill = ID)) + 
   geom_density(alpha = 0.7) + 
   geom_text(aes(x = X2, y = Y, label = t, col = ID),data = IEtext, parse = T) + 
-  geom_line(aes(x = X, y = Y, color = ID), data = IEarrow, arrow = arrow(length = unit(0.3, "cm"))) + 
   theme_classic() + 
   scale_x_log10(labels = scientific, name = "Interaction effect onto plants") + 
   scale_fill_manual(name = "Simulation Type", values = c("#009E73","#E69F00","#56B4E9", "#F0E442","#0072B2"), breaks = c("Simple: Donor-controlled", "Simple: Lotka-Volterra","Complex: Equilibrium","Complex: Non-equilibrium","Complex: Field simulation")) + 
   scale_color_manual(guide = F, values = c("#009E73","#E69F00","#56B4E9", "#F0E442","#0072B2"), breaks = c("Simple: Donor-controlled", "Simple: Lotka-Volterra","Complex: Equilibrium","Complex: Non-equilibrium","Complex: Field simulation")) +
   ylab("Density") +
-  theme(legend.position = c(0.9, 0.5),
+  theme(legend.position = c(0.3, 0.55),
         legend.justification = c(1, 0),
         legend.box = "horizontal")
 dev.off()
