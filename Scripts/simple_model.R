@@ -82,8 +82,8 @@ for(i in 1:REPS){
   # Randomly draw the new parameters: See notes for how they compare to the complex model
   params = c(Vpn = rlnorm(1,meanlog = log(0.3794274), sdlog = 0.3536), # Equals A_P*Vpf*P/(Kpf + N*) from the complex model
              tp = rlnorm(1,meanlog = log(0.000005/74.6263897), sdlog = 0.3536), # Equals tp/P* in the complex model
-             th = rlnorm(1,meanlog = log(20), sdlog = 0.3536), # Equals th/H* in the complex model : MODIFIED TO MATCH EQM
-             Vhp = rlnorm(1,meanlog = log(0.0001888764), sdlog = 0.3536), # Equals A_W*Vhp*H calculated at 25C in the complex model : MODIFIED TO MATCH EQM
+             th = rlnorm(1,meanlog = log(14.84098), sdlog = 0.3536), # Equals th/H* in the complex model : MODIFIED TO MATCH EQM
+             Vhp = rlnorm(1,meanlog = log(0.01888764), sdlog = 0.3536), # Equals A_W*Vhp*H calculated at 25C in the complex model : MODIFIED TO MATCH EQM
              IN = rlnorm(1,meanlog = log(0.02), sdlog = 0.3536), # Same as the complex model
              q = rlnorm(1,meanlog = log(0.1), sdlog = 0.3536),# Same as the complex model
              k = rlnorm(1,meanlog = log(0.005713002), sdlog = 0.3536), # Equals: Vlm*M/(Klm + M) + A_W*Vlw*W, where Vlm and Klm are modified by temperature so they are calculated at 25C
@@ -162,8 +162,8 @@ test2 <- function(Ni){
     # Randomly draw the new parameters: See notes for how they compare to the complex model
     params = c(Vpn = rlnorm(1,meanlog = log(0.005084359), sdlog = 0.3536), # Equals A_P*Vpf/(Kpf + N*) from the complex model
                tp = rlnorm(1,meanlog = log(0.000005/74.6263897), sdlog = 0.3536), # Equals tp/P* in the complex model
-               th = rlnorm(1,meanlog = log(20), sdlog = 0.3536), # Equals th/H* in the complex model : MODIFIED TO MATCH EQM
-               Vhp = rlnorm(1,meanlog = log(0.01401555), sdlog = 0.3536), # Equals A_W*Vhp calculated at 25C in the complex model : MODIFIED TO MATCH EQM
+               th = rlnorm(1,meanlog = log(14.84098), sdlog = 0.3536), # Equals th/H* in the complex model : MODIFIED TO MATCH EQM
+               Vhp = rlnorm(1,meanlog = log(1.401555), sdlog = 0.3536), # Equals A_W*Vhp calculated at 25C in the complex model : MODIFIED TO MATCH EQM
                IN = rlnorm(1,meanlog = log(0.02), sdlog = 0.3536), # Same as the complex model
                q = rlnorm(1,meanlog = log(0.1), sdlog = 0.3536),# Same as the complex model
                k = rlnorm(1,meanlog = log(0.005713002), sdlog = 0.3536), # Equals: Vlm*M/(Klm + M) + A_W*Vlw*W, where Vlm and Klm are modified by temperature so they are calculated at 25C
@@ -314,8 +314,6 @@ test2 <- function(Ni){
 
 # Run the model
 out2 = lapply(seq(1,REPS,1), FUN = test2)
-
-lapply(seq(1,10,1), FUN = test2)
 
 # Reorganize the data
 out3 = vector(mode = "list", length = REPS)
