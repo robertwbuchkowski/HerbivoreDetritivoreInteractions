@@ -8,12 +8,10 @@ library(tidyverse)
 # How many replicates do you want?
 REPS = 10000
 
-# Show the equilibrium of the complex model to help with parameter conversion for these models:
-
+# Show the equilibrium of the complex model to help with parameter conversion for these models ----
 Equilibrium = c(74.6263897,16.2370121,6.7150554,10.3387229,0.1480483,80.5771975,0.0134762)
 names(Equilibrium) = c("P","L" ,"M","W","N","S","H")
 rm(Equilibrium)
-
 # Analysis of simple DC model ----
 
 # A function that calculates the equilibrium of the simple model give input parameters.
@@ -87,8 +85,8 @@ for(i in 1:REPS){
              IN = rlnorm(1,meanlog = log(0.02), sdlog = 0.3536), # Same as the complex model
              q = rlnorm(1,meanlog = log(0.1), sdlog = 0.3536),# Same as the complex model
              k = rlnorm(1,meanlog = log(0.005713002), sdlog = 0.3536), # Equals: Vlm*M/(Klm + M) + A_W*Vlw*W, where Vlm and Klm are modified by temperature so they are calculated at 25C
-             Vwl = rlnorm(1,meanlog = log(3.477668e-05), sdlog = 0.3536), # Equals A_W*Vwl*W calculated at 25C in the complex model
-             tw = rlnorm(1,meanlog = log(9.672375e-07), sdlog = 0.3536), # Equals tw/W* in the complex model
+             Vwl = rlnorm(1,meanlog = log(3.477668e-03), sdlog = 0.3536), # Equals A_W*Vwl*W calculated at 25C in the complex model
+             tw = rlnorm(1,meanlog = log(9.672375e-06), sdlog = 0.3536), # Equals tw/W* in the complex model
              l = rlnorm(1,meanlog = log(1e-4), sdlog = 0.3536), # Same as the complex model
              eh = rlnorm(1,meanlog = log(0.7), sdlog = 0.3536), # Same as the complex model
              ew = rlnorm(1,meanlog = log(0.02), sdlog = 0.3536)) # Same as SUEwl in the complex model
@@ -167,8 +165,8 @@ test2 <- function(Ni){
                IN = rlnorm(1,meanlog = log(0.02), sdlog = 0.3536), # Same as the complex model
                q = rlnorm(1,meanlog = log(0.1), sdlog = 0.3536),# Same as the complex model
                k = rlnorm(1,meanlog = log(0.005713002), sdlog = 0.3536), # Equals: Vlm*M/(Klm + M) + A_W*Vlw*W, where Vlm and Klm are modified by temperature so they are calculated at 25C
-               Vwl = rlnorm(1,meanlog = log(3.363731e-06), sdlog = 0.3536), # Equals A_W*Vwl*W calculated at 25C in the complex model
-               tw = rlnorm(1,meanlog = log(9.672375e-07), sdlog = 0.3536), # Equals tw/W* in the complex model
+               Vwl = rlnorm(1,meanlog = log(3.363731e-04), sdlog = 0.3536), # Equals A_W*Vwl calculated at 25C in the complex model
+               tw = rlnorm(1,meanlog = log(9.672375e-06), sdlog = 0.3536), # Equals tw/W* in the complex model
                l = rlnorm(1,meanlog = log(1e-4), sdlog = 0.3536), # Same as the complex model
                eh = rlnorm(1,meanlog = log(0.7), sdlog = 0.3536), # Same as the complex model
                ew = rlnorm(1,meanlog = log(0.02), sdlog = 0.3536)) # Same as SUEwl in the complex model
@@ -526,13 +524,15 @@ comeqm = DCeqm %>%
 
 comeqm %>% write_csv("Data/compeqm_Nov2020.csv")
 
-png("Plots/model_compare_state_var.png", width = 8, height = 6, units = "in", res = 600)
-comeqm %>%
+cmsv = comeqm %>%
   ggplot(aes(x = Model)) + geom_pointrange(aes(y = med, ymin = lq, ymax = uq, color = ID)) + theme_classic() + facet_wrap(.~nvec2, scales = "free") +
   scale_color_manual(name = "Simulation Type", values = c("#009E73","#E69F00","#56B4E9"), breaks = c("Simple: Donor-controlled", "Simple: Lotka-Volterra","Complex: Equilibrium"))  +
   theme(legend.position = c(0.95, 0.08),
         legend.justification = c(1, 0),
         legend.box = "horizontal")
+
+png("Plots/model_compare_state_var.png", width = 8, height = 6, units = "in", res = 600)
+cmsv
 dev.off()
 
 # Plot all four models together ----
@@ -545,71 +545,104 @@ scientific3 <- function(x){
   ifelse(x==0, "0", gsub("[+]", "", gsub("e", " %*% 10^", scales::scientific_format()(x))))
 }
 
-selected_pool = "P"
-
-IEplot = outlist2 %>% 
-  filter(nvec == selected_pool) %>%
-  mutate(IEscale = abs(IE)+1e-6,
-         ID = "Simple: Donor-controlled") %>%
-  select(IEscale, ID) %>%
-  bind_rows(
-    out4 %>% 
-      filter(nvec == selected_pool) %>%
-      mutate(IEscale = abs(IE)+1e-6,
-             ID = "Simple: Lotka-Volterra") %>%
-      select(IEscale, ID)
+# This function with plot the outcomes by state variable
+toplot_int <- function(selected_pool, # Which state variable (P, N, L)?
+                       xlabel, # What should it be called in the axis label?
+                       Yvec, # Where should the text labels be vertically?
+                       Xvec, # Multiplier to adjust text labels horizontally
+                       legpos = c(0.3, 0.55) # Position of the legend
+                       ){
+  IEplot = outlist2 %>% 
+    filter(nvec == selected_pool) %>%
+    mutate(IEscale = abs(IE)+1e-6,
+           ID = "Simple: Donor-controlled") %>%
+    select(IEscale, ID) %>%
+    bind_rows(
+      out4 %>% 
+        filter(nvec == selected_pool) %>%
+        mutate(IEscale = abs(IE)+1e-6,
+               ID = "Simple: Lotka-Volterra") %>%
+        select(IEscale, ID)
     ) %>% 
-  bind_rows(
-    data2c %>% 
-      filter(StateVar == selected_pool) %>%
-      ungroup() %>%
-      mutate(IEscale = abs(IE)+1e-6,
-             ID = "Complex: Equilibrium") %>%
-      select(IEscale, ID)
-  ) %>% 
-  bind_rows(
-    data2c_noneqm %>% 
-      filter(StateVar == selected_pool) %>%
-      ungroup() %>%
-      mutate(IEscale = abs(IE)+1e-6,
-             ID = "Complex: Non-equilibrium") %>%
-      select(IEscale, ID)
-  ) %>% 
-  bind_rows(
-    outfinal3 %>% 
-      filter(StateVar == selected_pool) %>%
-      ungroup() %>%
-      mutate(IEscale = abs(IE)+1e-6,
-             ID = "Complex: Field simulation") %>%
-      select(IEscale, ID)
-  )
+    bind_rows(
+      data2c %>% 
+        filter(StateVar == selected_pool) %>%
+        ungroup() %>%
+        mutate(IEscale = abs(IE)+1e-6,
+               ID = "Complex: Equilibrium") %>%
+        select(IEscale, ID)
+    ) %>% 
+    bind_rows(
+      data2c_noneqm %>% 
+        filter(StateVar == selected_pool) %>%
+        ungroup() %>%
+        mutate(IEscale = abs(IE)+1e-6,
+               ID = "Complex: Non-equilibrium") %>%
+        select(IEscale, ID)
+    ) %>% 
+    bind_rows(
+      outfinal3 %>% 
+        filter(StateVar == selected_pool) %>%
+        ungroup() %>%
+        mutate(IEscale = abs(IE)+1e-6,
+               ID = "Complex: Field simulation") %>%
+        select(IEscale, ID)
+    )
   
-IEtext = IEplot %>% group_by(ID) %>%
-  summarise(X = median(IEscale)) %>%
-  mutate(Y = c(0.3, 0.5, 0.4, 0.8, 0.5)+ 0.05) %>%
-  mutate(t = X) %>%
-  mutate(t = scientific3(t)) %>%
-  mutate(X2 = ifelse(X > 1000, X*10, X))
+  IEtext = IEplot %>% group_by(ID) %>%
+    summarise(X = median(IEscale)) %>%
+    mutate(Y = Yvec) %>%
+    mutate(t = X) %>%
+    mutate(t = scientific3(t)) %>%
+    mutate(X2 = X*Xvec)
+  
+  lalala = IEplot %>% ggplot(aes(x = IEscale, fill = ID)) + 
+    geom_density(alpha = 0.7) + 
+    geom_text(aes(x = X2, y = Y, label = t, col = ID),data = IEtext, parse = T) + 
+    theme_classic() + 
+    scale_x_log10(labels = scientific, name = xlabel) + 
+    scale_fill_manual(name = "Simulation Type", values = c("#009E73","#E69F00","#56B4E9", "#F0E442","#0072B2"), breaks = c("Simple: Donor-controlled", "Simple: Lotka-Volterra","Complex: Equilibrium","Complex: Non-equilibrium","Complex: Field simulation")) +
+    scale_color_manual(guide = F, values = c("#009E73","#E69F00","#56B4E9", "#F0E442","#0072B2"), breaks = c("Simple: Donor-controlled", "Simple: Lotka-Volterra","Complex: Equilibrium","Complex: Non-equilibrium","Complex: Field simulation")) +
+    ylab("Density") +
+    theme(legend.position = legpos,
+          legend.justification = c(1, 0),
+          legend.box = "horizontal")
+  return(lalala)
+}
 
-png(paste0("Plots/Figure5_Nov2020_",selected_pool,".png"), width = 7, height = 4, units = "in", res = 600)
-IEplot %>% ggplot(aes(x = IEscale, fill = ID)) + 
-  geom_density(alpha = 0.7) + 
-  geom_text(aes(x = X2, y = Y, label = t, col = ID),data = IEtext, parse = T) + 
-  theme_classic() + 
-  scale_x_log10(labels = scientific, name = "Interaction effect onto plants") + 
-  scale_fill_manual(name = "Simulation Type", values = c("#009E73","#E69F00","#56B4E9", "#F0E442","#0072B2"), breaks = c("Simple: Donor-controlled", "Simple: Lotka-Volterra","Complex: Equilibrium","Complex: Non-equilibrium","Complex: Field simulation")) +
-  scale_color_manual(guide = F, values = c("#009E73","#E69F00","#56B4E9", "#F0E442","#0072B2"), breaks = c("Simple: Donor-controlled", "Simple: Lotka-Volterra","Complex: Equilibrium","Complex: Non-equilibrium","Complex: Field simulation")) +
-  ylab("Density") +
-  theme(legend.position = c(0.3, 0.55),
-        legend.justification = c(1, 0),
-        legend.box = "horizontal")
+# Run the plant plot
+a = toplot_int(selected_pool = "P",
+           xlabel = "Interaction effect onto plants",
+           Yvec = c(0.3, 0.5, 0.4, 0.8, 0.5)+ 0.05,
+           Xvec = c(1,1,1,10,0.1))
+
+png(paste0("Plots/Figure5_Nov2020_","P",".png"), width = 7, height = 4, units = "in", res = 600)
+a
+dev.off()
+
+# Run the inorganic nitrogen plot
+aN = toplot_int(selected_pool = "N",
+               xlabel = "Interaction effect onto inorganic N",
+               Yvec = c(0.95, 0.85, 0.85, 0.75, 0.85)+ 0.05,
+               Xvec = c(1,2,1,1,10),
+               legpos = c(0.6, 0.55))
+
+png(paste0("Plots/Figure5_Nov2020_","N",".png"), width = 7, height = 4, units = "in", res = 600)
+aN
+dev.off()
+
+# Run the litter plot
+aL = toplot_int(selected_pool = "L",
+               xlabel = "Interaction effect onto litter",
+               Yvec = c(1.05, 0.85, 0.95, 0.85, 0.95)+ 0.05,
+               Xvec = c(1,1,1,1,10),
+               legpos = c(0.4, 0.55))
+
+png(paste0("Plots/Figure5_Nov2020_","L",".png"), width = 7, height = 4, units = "in", res = 600)
+aL
 dev.off()
 
 # Get the abundance data from the complex model and plot it -----
-
-outlist2
-
-head(out4)
 
 datahist <- data2 %>%
   filter(Stable == 1) %>% select(Treatment, W, H, Type) %>%
@@ -634,8 +667,7 @@ scientific2 <- function(x){
   ifelse(x==0, "0", parse(text=gsub("1 %*% ","",x = gsub("[+]", "", gsub("e", " %*% 10^", scales::scientific_format()(x))), fixed = T)))
 }
 
-png("Plots/complex_model_HW.png", width = 6, height = 5, units = "in", res = 600)
-datahist %>%
+cmsv2 = datahist %>%
   gather(-Treatment, -Type, key = StateVar, value = Biomass) %>%
   filter(Biomass > 0) %>%
   left_join(
@@ -646,4 +678,13 @@ datahist %>%
   theme(legend.position = c(0.4, 0.05),
         legend.justification = c(0, 0),
         legend.box = "horizontal")
+
+png("Plots/complex_model_HW.png", width = 6, height = 5, units = "in", res = 600)
+cmsv2
+dev.off()
+
+
+# Combine the N, L, abundance equilibrium, and abundance in complex model plots for the supplemental ----
+png("Plots/supplementary_figure_model_comparison.png", width = 14, height = 8, units = "in", res = 600)
+cowplot::plot_grid(aN,aL, cmsv, cmsv2, labels = "AUTO")
 dev.off()
