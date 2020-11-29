@@ -73,6 +73,8 @@ test <-function(parms){
 outlist <- vector(mode = "list", length = REPS)
 paramlist <- vector(mode = "list", length = REPS)
 
+# 1484.098
+
 # Run 10,000 random parameter sets
 t1 = Sys.time()
 for(i in 1:REPS){
@@ -80,8 +82,8 @@ for(i in 1:REPS){
   # Randomly draw the new parameters: See notes for how they compare to the complex model
   params = c(Vpn = rlnorm(1,meanlog = log(0.3794274), sdlog = 0.3536), # Equals A_P*Vpf*P/(Kpf + N*) from the complex model
              tp = rlnorm(1,meanlog = log(0.000005/74.6263897), sdlog = 0.3536), # Equals tp/P* in the complex model
-             th = rlnorm(1,meanlog = log(1484.098), sdlog = 0.3536), # Equals th/H* in the complex model
-             Vhp = rlnorm(1,meanlog = log(0.0001888764), sdlog = 0.3536), # Equals A_W*Vhp*H calculated at 25C in the complex model
+             th = rlnorm(1,meanlog = log(20), sdlog = 0.3536), # Equals th/H* in the complex model : MODIFIED TO MATCH EQM
+             Vhp = rlnorm(1,meanlog = log(0.0001888764), sdlog = 0.3536), # Equals A_W*Vhp*H calculated at 25C in the complex model : MODIFIED TO MATCH EQM
              IN = rlnorm(1,meanlog = log(0.02), sdlog = 0.3536), # Same as the complex model
              q = rlnorm(1,meanlog = log(0.1), sdlog = 0.3536),# Same as the complex model
              k = rlnorm(1,meanlog = log(0.005713002), sdlog = 0.3536), # Equals: Vlm*M/(Klm + M) + A_W*Vlw*W, where Vlm and Klm are modified by temperature so they are calculated at 25C
@@ -106,6 +108,14 @@ for(i in 1:REPS){
 
 # Bind the parameter sets
 outlist2 = do.call("rbind", outlist)
+
+# Save range in pool sizes for m4:
+
+DCeqm = outlist2 %>% select(nvec, m4) %>%
+  group_by(nvec) %>%
+  summarise(lq = quantile(m4, 0.25),
+            med = median(m4),
+            uq = quantile(m4, 0.75))
 
 # Delete animal pools
 outlist2 = outlist2[!(outlist2$nvec %in% c("H", "W")),]
@@ -132,6 +142,8 @@ outlist2[,"ncex"] = ifelse(outlist2$Best == 1, 1, 0.5)
 
 write_csv(outlist2, "Data/simplemodel_DC_Nov2020.csv")
 
+rm(params)
+
 # Analysis of simple LV model ----
 
 # A function that runs the simple model with Lotka-Volterra functional responses
@@ -150,12 +162,12 @@ test2 <- function(Ni){
     # Randomly draw the new parameters: See notes for how they compare to the complex model
     params = c(Vpn = rlnorm(1,meanlog = log(0.005084359), sdlog = 0.3536), # Equals A_P*Vpf/(Kpf + N*) from the complex model
                tp = rlnorm(1,meanlog = log(0.000005/74.6263897), sdlog = 0.3536), # Equals tp/P* in the complex model
-               th = rlnorm(1,meanlog = log(20), sdlog = 0.3536), # Equals th/H* in the complex model
-               Vhp = rlnorm(1,meanlog = log(0.01401555), sdlog = 0.3536), # Equals A_W*Vhp calculated at 25C in the complex model
+               th = rlnorm(1,meanlog = log(20), sdlog = 0.3536), # Equals th/H* in the complex model : MODIFIED TO MATCH EQM
+               Vhp = rlnorm(1,meanlog = log(0.01401555), sdlog = 0.3536), # Equals A_W*Vhp calculated at 25C in the complex model : MODIFIED TO MATCH EQM
                IN = rlnorm(1,meanlog = log(0.02), sdlog = 0.3536), # Same as the complex model
                q = rlnorm(1,meanlog = log(0.1), sdlog = 0.3536),# Same as the complex model
                k = rlnorm(1,meanlog = log(0.005713002), sdlog = 0.3536), # Equals: Vlm*M/(Klm + M) + A_W*Vlw*W, where Vlm and Klm are modified by temperature so they are calculated at 25C
-               Vwl = rlnorm(1,meanlog = log(3.363731e-06), sdlog = 0.3536), # Equals A_W*Vwl calculated at 25C in the complex model
+               Vwl = rlnorm(1,meanlog = log(3.363731e-06), sdlog = 0.3536), # Equals A_W*Vwl*W calculated at 25C in the complex model
                tw = rlnorm(1,meanlog = log(9.672375e-07), sdlog = 0.3536), # Equals tw/W* in the complex model
                l = rlnorm(1,meanlog = log(1e-4), sdlog = 0.3536), # Same as the complex model
                eh = rlnorm(1,meanlog = log(0.7), sdlog = 0.3536), # Same as the complex model
@@ -303,6 +315,8 @@ test2 <- function(Ni){
 # Run the model
 out2 = lapply(seq(1,REPS,1), FUN = test2)
 
+lapply(seq(1,10,1), FUN = test2)
+
 # Reorganize the data
 out3 = vector(mode = "list", length = REPS)
 
@@ -311,6 +325,15 @@ for(j in 1:REPS){
 }
 
 out4 = do.call("rbind", out3)
+
+# Save equilibrium
+LVeqm = out4 %>% select(nvec, m4) %>%
+  group_by(nvec) %>%
+  summarise(lq = quantile(m4, 0.25),
+            med = median(m4),
+            uq = quantile(m4, 0.75)) %>%
+  filter(nvec != "rmax")
+
 
 out4 = out4[!(out4$nvec %in% c("H", "W", "rmax")),]
 
@@ -336,10 +359,6 @@ out4[,"npch"] = ifelse(out4$nvec == "P", 1,
 out4[,"ncex"] = ifelse(out4$Best == 1, 1, 0.5)
 
 write_csv(out4, "Data/simplemodel_LV_Nov2020.csv")
-
-# Clean out the earlier analysis -----
-
-rm(test, test2)
 
 # Load in the simple model data if necessary -----
 
@@ -425,7 +444,9 @@ data2a = data2 %>% as_tibble() %>%
   gather(-Treatment, -Stable, -ID, - Type, key = StateVar, value = biomass) %>%
   filter(Stable == 1) %>% select(-Stable)
 data2b = data2a %>%
-  group_by(ID, Type) %>% summarize(N = n()) %>% filter(N == 28) %>%
+  group_by(ID, Type) %>% 
+  summarize(N = n()) %>% 
+  filter(N == 28) %>%
   select(ID, Type) %>%
   left_join(
     data2a
@@ -459,126 +480,64 @@ data2c$ncol = as.character(data2c$ncol)
 data2c_noneqm = data2c %>% filter(Type == "NON-EQM") %>% select(-Type)
 data2c = data2c %>% filter(Type == "EQM") %>% select(-Type)
 
-plot((abs(IE+1e-6))~(abs(WE+1e-6)), data = data2c, log = 'xy', col = ncol, pch = npch,
-     xlab= "Detritivore Effect (log|DE|)", ylab = "Interaction Effect (log|IE|)", cex = ncex)
-abline(a = 0, b = 1, lty = 2, lwd = 2)
-abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
-abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
-abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-legend("topleft", legend = "E", bty = "n")
-
-plot((abs(IE+1e-6))~(abs(HE+1e-6)), data = data2c, log = 'xy', col = ncol, pch = npch,
-     xlab= "Herbivore Effect (log|HE|)", ylab = "", cex = ncex)
-abline(a = 0, b = 1, lty = 2, lwd = 2)
-abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
-abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
-abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-legend("topleft", legend = "F", bty = "n")
-
-# Plot all four models together ----
-
-# A. Simple model, donor-controlled
-# B. Simple model, Lotka-Volterra
-# C. Complex model, equilibrium
-# D. Complex model, non-equilibrium
-
-outfinal3 = read_rds("Data/TrueLinearComplex.rds") # Load in the non-equilibrium cluster data
+# Load in the non-equilibrium cluster data
+outfinal3 = read_rds("Data/TrueLinearComplex.rds")
 
 outfinal3$ncol = as.character(outfinal3$ncol)
 
-png("Plots/Bothmodel2.png", width = 12, height = 8, units = "in", res = 600)
 
-par(oma=c(2,2,0,0))
-par(mfrow=c(2,3), mar = c(3,3,1,1))
-plot((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = outlist2, log = 'xy', col = ncol, pch = npch, cex = ncex,
-     xlab= "", 
-     ylab = "", type = "n", main = "Simple: Donor controlled",
-     axes = F, ylim = c(1e-11, 1e36), xlim = c(1e-11, 1e36))
-axis(1, at = c(1e-11,1e-3,1e5,1e13, 1e21, 1e31), labels = expression(10^-11,10^-3,10^5,10^13, 10^21, 10^31))
-axis(2, at = c(1e-11,1e-3,1e5,1e13, 1e21, 1e31), labels = expression(10^-11,10^-3,10^5,10^13, 10^21, 10^31))
-abline(a = 0, b = 1, lty = 2, lwd = 2)
-abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
-abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
-abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-points((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = outlist2, col = ncol, pch = npch, cex = ncex)
-legend("topleft", legend = "A", bty = "n")
-legend("bottomright", legend = c("Plant", "Litter", "Inorganic N", "Soil", "Microbe"),
-       col = c("#009E73","#E69F00","#56B4E9", "#F0E442","#0072B2"), pch = 1:5, bty = "n", title = "State Variable")
+# Plot the equilibria values together
 
+comeqm = DCeqm %>%
+  mutate(ID = "Simple: Donor-controlled") %>%
+  mutate(Model = "S-DC") %>%
+  bind_rows(
+    LVeqm %>%
+      mutate(ID = "Simple: Lotka-Volterra") %>%
+      mutate(Model = "S-LV")
+  ) %>%
+  bind_rows(
+    data2a %>%
+      group_by(ID, Type) %>% 
+      summarize(N = n()) %>% 
+      filter(N == 28) %>%
+      select(ID, Type) %>%
+      left_join(
+        data2a
+      ) %>%
+      distinct() %>%
+      spread(key = Treatment, value = biomass) %>% 
+      filter(Type == "EQM") %>% 
+      filter(!(StateVar %in% c("S", "M"))) %>%
+      ungroup() %>%
+      select(StateVar, HW) %>%
+      group_by(StateVar) %>%
+      summarise(lq = quantile(HW, 0.25),
+                med = median(HW),
+                uq = quantile(HW, 0.75)) %>%
+      mutate(ID = "Complex: Equilibrium") %>%
+      mutate(Model = "Complex") %>%
+      rename(nvec = StateVar)
+  ) %>%
+  filter(nvec != "M" & nvec != "S") %>%
+  left_join(
+    tibble(nvec = c("H", "L", "P", "W", "N"),
+           nvec2 = c("Herbivore", "Litter", "Plant", "Detritivore", "Inorganic N")
+    )
+  )
 
-plot((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = out4, log = 'xy', col = ncol, pch = npch, cex = ncex,
-     xlab= "", 
-     ylab = "", type = "n", main = "Simple: Type I",
-     axes = F, ylim = c(1e-11, 1e36), xlim = c(1e-11, 1e36))
-axis(1, at = c(1e-11,1e-3,1e5,1e13, 1e21, 1e31), labels = expression(10^-11,10^-3,10^5,10^13, 10^21, 10^31))
-axis(2, at = c(1e-11,1e-3,1e5,1e13, 1e21, 1e31), labels = expression(10^-11,10^-3,10^5,10^13, 10^21, 10^31))
-abline(a = 0, b = 1, lty = 2, lwd = 2)
-abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
-abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
-abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-points((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = out4, col = ncol, pch = npch, cex = ncex)
-legend("topleft", legend = "B", bty = "n")
+comeqm %>% write_csv("Data/compeqm_Nov2020.csv")
 
-plot(1,1, type = "n",axes = F, ylab = "", xlab = "", main = "Complex Model Animal Biomass")
-legend("topleft", legend = "C", bty = "n")
-
-plot((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = data2c, log = 'xy', col = ncol, pch = npch, cex = ncex,
-     xlab= "", 
-     ylab = "", type = "n", main = "Complex: Equilibrium",
-     axes = F, ylim = c(1e-11, 1e5), xlim = c(1e-11, 1e5))
-axis(1, at = c(1e-11,1e-3,1e5), labels = expression(10^-11,10^-3,10^5))
-axis(2, at = c(1e-11,1e-3,1e5), labels = expression(10^-11,10^-3,10^5))
-abline(a = 0, b = 1, lty = 2, lwd = 2)
-abline(a = 0, b = 1, lty = 2, lwd = 2)
-abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
-abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
-abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-points((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = data2c, col = ncol, pch = npch, cex = ncex)
-legend("topleft", legend = "D", bty = "n")
-
-plot((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = data2c_noneqm, log = 'xy', col = ncol, pch = npch, cex = ncex,
-     xlab= "", 
-     ylab = "", type = "n", main = "Complex: Non-equilibrium",
-     axes = F, ylim = c(1e-11, 1e5), xlim = c(1e-11, 1e5))
-axis(1, at = c(1e-11,1e-3,1e5), labels = expression(10^-11,10^-3,10^5))
-axis(2, at = c(1e-11,1e-3,1e5), labels = expression(10^-11,10^-3,10^5))
-abline(a = 0, b = 1, lty = 2, lwd = 2)
-abline(a = 0, b = 1, lty = 2, lwd = 2)
-abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
-abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
-abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-points((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = data2c_noneqm, col = ncol, pch = npch, cex = ncex)
-legend("topleft", legend = "E", bty = "n")
-
-plot((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = outfinal3, log = 'xy', col = ncol, pch = npch, cex = ncex,
-     xlab= "", 
-     ylab = "", 
-     type = "n", main = "Complex: Field simulation",
-     axes = F, ylim = c(1e-11, 1e5), xlim = c(1e-11, 1e5))
-axis(1, at = c(1e-11,1e-3,1e5), labels = expression(10^-11,10^-3,10^5))
-axis(2, at = c(1e-11,1e-3,1e5), labels = expression(10^-11,10^-3,10^5))
-abline(a = 0, b = 1, lty = 2, lwd = 2)
-abline(a = -log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
-abline(a = log(10), b = 1, lty = 2, lwd = 1.5, col = "grey")
-abline(a = -log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-abline(a = log(100), b = 1, lty = 3, lwd = 1.5, col = "grey")
-points((abs(IEacc+1e-6))~(abs(IEpred+1e-6)), data = outfinal3, col = ncol, pch = npch, cex = ncex)
-legend("topleft", legend = "F", bty = "n")
-
-
-mtext(text="Combined Effect (log|x|)",side=2,line=0,outer=TRUE,cex=1)
-mtext(text="Herbivore + Detritivore Effect (log|x|)",side=1,line=0,outer=TRUE,cex=1)
+png("Plots/model_compare_state_var.png", width = 8, height = 6, units = "in", res = 600)
+comeqm %>%
+  ggplot(aes(x = Model)) + geom_pointrange(aes(y = med, ymin = lq, ymax = uq, color = ID)) + theme_classic() + facet_wrap(.~nvec2, scales = "free") +
+  scale_color_manual(name = "Simulation Type", values = c("#009E73","#E69F00","#56B4E9"), breaks = c("Simple: Donor-controlled", "Simple: Lotka-Volterra","Complex: Equilibrium"))  +
+  theme(legend.position = c(0.95, 0.08),
+        legend.justification = c(1, 0),
+        legend.box = "horizontal")
 dev.off()
 
-
-# Another version of the both model plot -----
-
+# Plot all four models together ----
 scientific <- function(x){
   ifelse(x==0, "0", parse(text=gsub("[+]", "", gsub("e", " %*% 10^", scales::scientific_format()(x)))))
 }
@@ -640,7 +599,7 @@ IEplot %>% ggplot(aes(x = IEscale, fill = ID)) +
   geom_text(aes(x = X2, y = Y, label = t, col = ID),data = IEtext, parse = T) + 
   theme_classic() + 
   scale_x_log10(labels = scientific, name = "Interaction effect onto plants") + 
-  scale_fill_manual(name = "Simulation Type", values = c("#009E73","#E69F00","#56B4E9", "#F0E442","#0072B2"), breaks = c("Simple: Donor-controlled", "Simple: Lotka-Volterra","Complex: Equilibrium","Complex: Non-equilibrium","Complex: Field simulation")) + 
+  scale_fill_manual(name = "Simulation Type", values = c("#009E73","#E69F00","#56B4E9", "#F0E442","#0072B2"), breaks = c("Simple: Donor-controlled", "Simple: Lotka-Volterra","Complex: Equilibrium","Complex: Non-equilibrium","Complex: Field simulation")) +
   scale_color_manual(guide = F, values = c("#009E73","#E69F00","#56B4E9", "#F0E442","#0072B2"), breaks = c("Simple: Donor-controlled", "Simple: Lotka-Volterra","Complex: Equilibrium","Complex: Non-equilibrium","Complex: Field simulation")) +
   ylab("Density") +
   theme(legend.position = c(0.3, 0.55),
