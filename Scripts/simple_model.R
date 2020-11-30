@@ -524,9 +524,11 @@ comeqm = DCeqm %>%
 
 comeqm %>% write_csv("Data/compeqm_Nov2020.csv")
 
+comeqm = read_csv("Data/compeqm_Nov2020.csv")
+
 cmsv = comeqm %>%
   ggplot(aes(x = Model)) + geom_pointrange(aes(y = med, ymin = lq, ymax = uq, color = ID)) + theme_classic() + facet_wrap(.~nvec2, scales = "free") +
-  scale_color_manual(name = "Simulation Type", values = c("#009E73","#E69F00","#56B4E9"), breaks = c("Simple: Donor-controlled", "Simple: Lotka-Volterra","Complex: Equilibrium"))  +
+  scale_color_manual(name = "Simulation Type", values = c("#009E73","#F0E442","#0072B2"), breaks = c("Simple: Donor-controlled", "Simple: Lotka-Volterra","Complex: Equilibrium"))  +
   theme(legend.position = c(0.95, 0.08),
         legend.justification = c(1, 0),
         legend.box = "horizontal")
@@ -674,10 +676,11 @@ cmsv2 = datahist %>%
     tibble(StateVar = c("H", "W"),
            StateVar2 = c("Herbivore (Grasshopper)", "Detritivore (Earthworm)"))
   ) %>%
-  ggplot(aes(y = Biomass, x = Treatment, fill = Type)) + geom_boxplot() + theme_classic() + scale_y_log10(labels = scientific2) + facet_wrap(.~StateVar2) + scale_fill_viridis_d()  +
+  ggplot(aes(y = Biomass, x = Treatment, fill = Type)) + geom_boxplot() + theme_classic() + scale_y_log10(labels = scientific2) + facet_wrap(.~StateVar2) +
   theme(legend.position = c(0.4, 0.05),
         legend.justification = c(0, 0),
-        legend.box = "horizontal")
+        legend.box = "horizontal") + 
+  scale_fill_manual(name = "Simulation Type", values = c("#009E73","#56B4E9","#E69F00")) + ylab("Biomass (log scale)")
 
 png("Plots/complex_model_HW.png", width = 6, height = 5, units = "in", res = 600)
 cmsv2
