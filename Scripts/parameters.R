@@ -1,6 +1,5 @@
 # Load in the parameters and staring values for the complex model:
 
-
 # Baseline parameter values
 params<- c(Vlm_mod = 8e-6,
            Vsm_mod = 4e-06,

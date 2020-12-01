@@ -1,6 +1,15 @@
-require(FME)
-require(lubridate)
-require(tidyverse)
+# More complex model simulations:
+# Robert W. Buchkowski
+# Dec. 2020
+
+# This is an extra script that (1) simulations the complex model for cases where there are effects of herbivores and detritivores on plant community composition and (2) simulates the complex model to equilibrium to look at transience. 
+
+# These results are only used in the appendicies of the paper.
+
+
+require(FME) # version 1.3.5
+require(lubridate) # version 1.7.4
+require(tidyverse) # version 1.2.1
 
 # How many years do you want to simulate the experiments?
 simyear = 100

@@ -1,6 +1,8 @@
 # Model for cluster: Version 4.0
+# Robert W. Buchkowski
+# April 2020
 
-require(deSolve)
+require(deSolve) # version 1.21
 
 # How many replicates do you want to run in this code file?
 NTOT = 100
@@ -10,7 +12,7 @@ simyear = 100
 
 # Load in the required functions ----
 
-# A temperature function that takes day of the year (doy) and returns the temperature in Kelvin
+# A temperature function that takes day of the year (doy) and returns the temperature in Kelvin (calculated in extract_data_model_analysis.R)
 
 LTtemp = function(doy){
   
@@ -64,7 +66,7 @@ source("Scripts/parameters.R")
 
 # Complex model sampling and treatment data frames --------
 
-# A calculation of when the sample the model output in order to match it with the empirical results. If you save all the model data from >100,000 simulations the data file it prohibitively large
+# A calculation of when the sample the model output in order to match it with the empirical results. If you save all the model data from >100,000 simulations the data file is prohibitively large
 
 hopsamp = seq(0,3,1)*365 + 266
 soilsamp = c(seq(1,3,1)*365 + 170, seq(0,3,1)*365 + 300)
@@ -200,7 +202,7 @@ out1 = lapply(repseq, FUN=singlerun)
 
 outf <- do.call("rbind", out1)
 
-fname = paste0("/gpfs/loomis/home.grace/fas/schmitz/rwb45/Model_noneqm_Jun2020/modelcluster_", round(runif(1), 7)*10000000,round(runif(1), 7)*10000000, ".csv")
+fname = paste0("[YOUR UNIQUE PATH TO SAVE THE DATA]/modelcluster_", round(runif(1), 7)*10000000,round(runif(1), 7)*10000000, ".csv")
 
 write.csv(outf, fname, row.names = F)
 

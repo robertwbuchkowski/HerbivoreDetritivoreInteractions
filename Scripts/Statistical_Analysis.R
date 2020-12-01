@@ -64,6 +64,7 @@ ch4_correctAP <- lm(log(AP_N+0.1) ~ SoilTavg, data= wormdata3); summary(ch4_corr
 # Create table for supplemental material
 sjPlot::tab_model(ch4_correctworm0,ch4_correctworm, collapse.ci = T,pred.labels = c("Intercept", "Volumetric Water Content", "Soil Temperature","Cloud Cover (%)","Air Temperature"), dv.labels = c("Worm (#; all variables)", "Worm (#; selected variables)"),p.style="a")
 
+# Replace the earthworm data for the earthworm abundance from the model with extraction conditions
 wormdata3 = wormdata3 %>% 
   select(Plot, Season, Year) %>%
   mutate(WORM_N_STD = as.vector(resid(ch4_correctworm)),
@@ -92,7 +93,8 @@ write_rds(pbdata, "Data/pbdata.rds")
 
 # .. 1.1 Linear models --------------------
 
-# A function that runs the different linear models with and without interactions to make the final output easier
+# A function that runs the different linear models with and without interactions
+# This function keeps the following code clean and allows me to change variable specifications without copying the code multiple times
 linearmodels<- function(inputdata, inter = T){
   inputdata[,"Base16"] = inputdata$PlantBiomass16
   PBinter = lmer(PlantBiomass ~ WORM_N*HopperN + Year + Base16 + (1|Plot), data= inputdata)
@@ -127,6 +129,7 @@ linearmodels<- function(inputdata, inter = T){
 linearmodels(pbdata) # With interaction
 
 linearmodels(pbdata, inter= F) # Without interaction
+
 # ... 1.1.2 Model analysis with raw earthworm number ----
 linearmodels(pbdata %>% mutate(WORM_N = WORM_N_old))
 
@@ -151,7 +154,7 @@ linearmodels(pbdata %>% mutate(WORM_N = AP_N))
 linearmodels(pbdata %>% mutate(WORM_N = AP_N_old))
 # ... 1.1.6 Model analysis of two years separately ----
 
-# A new version of the linear model function that lets you select years separately
+# A new version of the 'linearmodels' function that runs the years separately
 YearSeparateModels<- function(inputdata, inter = T){
   
   inputdata[,"Base16"] = inputdata$PlantBiomass16
@@ -189,6 +192,8 @@ YearSeparateModels(pbdata %>% filter(Year == "17"))
 YearSeparateModels(pbdata %>% filter(Year == "18"))
 
 # ... 1.1.7 Plot the results of the univariate linear models ----
+
+# This plot is found in the Appendix S1: Figure S9
 
 pbdata = pbdata %>% mutate(Year = as.factor(Year))
 
@@ -278,6 +283,7 @@ rm(PBfinal,SIRfinal, NTsfinal, NTmfinal)
 
 #.... 1.1.8 Model the effects of biomass control and year ----
 
+# Subset the data to only include the two controls
 bmdata = pbdata %>% filter(HopperAdd!="Add" & Addition!="Add")
 
 bm1 = lmer(PlantBiomass~BiomassCtrl + Year + (1|Plot), data=bmdata); summary(bm1)
@@ -302,6 +308,7 @@ ann_text <- data.frame(Year = c(0.75, 0.75, 0.75, 2.1, 2.1), Measure = c(0.6,1.5
                        Key = as.factor(c("NTm", "NTs", "PlantBiomass", "SIR", "SIR")),
                        BiomassCtrl= rep("No", 5))
 
+# This is Figure 3
 jpeg(paste0("Stats_plots_from_",Sys.Date(),"/BiomassCtrl_Year_",Sys.Date(), ".jpeg"), units="in", width=7, height=7, res=600)
 ggplot(bmdata2, aes(x=Year, y=Measure, color=BiomassCtrl)) + 
   geom_boxplot(outlier.shape = NA) + 
@@ -314,6 +321,7 @@ dev.off()
   
 # .. 1.2 Plant Community Composition Analysis: RDA -------------------------------
 
+# Scale the data with a hellinger transformation
 planthel = decostand(RDAdata %>% select(ACMI:VICR), "hellinger")
 
 # Interaction
@@ -373,6 +381,7 @@ dev.off()
 
 # .... 1.2.1 Cover and worm analysis of the data-----
 
+# This analysis of earthworms and specific plant cover is not included in the manuscript
 coverworm = percentcover %>% separate(SeasonYear, into=c("Season", "Year"), sep=-2) %>% select(-Date, -ExperimentStart, - DOE, -Season) %>% gather(-Plot, -Year, -DOY, key=Plant, value=Cover) %>% 
   left_join(read_csv("Data/plant_groups_ch4.csv")) %>% # can add this information
   filter(DOY!=150) %>% # remove second spring survey so 2017 and 2018 have the same # of surveys
@@ -394,15 +403,16 @@ summary(lm(Cover~Addition+Year, data=coverworm %>% filter(Fcn_grp =="grass")))
 summary(lm(Cover~Addition+Year, data=coverworm %>% filter(Fcn_grp =="forb")))
 
 # worm treatment or number don't explain changes in plant cover...largest effect is time with forbs replacing clover.
-
 rm(coverworm)
 
-# .. 1.3 Run SEM Models ----
+# .. 1.3 Run Path Analysis (Structural equation models [SEM]) ----
 
 # Modify and standardize the data for the SEM analysis
 
+# Total plant cover calculation
 Totals = RDAdata %>% select(ACMI:VICR) %>% rowSums()
 
+# Add in the goldenrod and clover to the data frame standardized for percent of total community
 pcdata = pbdata %>% 
   left_join(RDAdata %>% select(Plot, Year, SOAL, TRPR, TRPR16)) %>% 
   mutate(SOAL = SOAL/Totals, TRPR = TRPR/Totals) %>% 
@@ -412,10 +422,14 @@ pcdata = pbdata %>%
 rm(Totals)
 
 pbdata_SEM = pcdata %>% 
+  
+  # Select the right data
   select(c("WORM_N","AP_N", "HopperN", "SIR", "NTs", "NTm", 
            "PlantBiomass16", "SoilTavg","VWCavg", "NTm16", 
            "NTs16", "SIR16", "AP_N", "LUM_N", "SOAL", "TRPR", 
            "TRPR16", "SOALbase", "PlantBiomass", "Plot", "Year")) %>%
+  
+  # Rescale the data for an SEM
   mutate_at(c("WORM_N","AP_N", "HopperN", "SIR", "NTs", "NTm", 
               "PlantBiomass16", "SoilTavg","VWCavg", "NTm16", 
               "NTs16", "SIR16", "AP_N", "LUM_N", "SOAL", "TRPR", 
@@ -428,8 +442,7 @@ pbdata_SEM = pbdata_SEM %>% select(PlantBiomass, Plot, Year, WORM_N_scale:SOALba
   select(-sclae) %>%
   spread(key = Variable, value = value)
 
-# Define the SEMs with and without interactions
-
+# Define and run the SEMs with (SEM1), with one (SEM2), and without (SEM3) interactions
 SEM1 <- psem(lme(PlantBiomass ~ WORM_N*HopperN + SIR + NTs + NTm + PlantBiomass16 + SOAL + TRPR + Year,random=~1|Plot, data=pbdata_SEM),
              lme(SOAL ~WORM_N*HopperN + SOALbase + Year,random=~1|Plot, data=pbdata_SEM),
              lme(TRPR ~WORM_N*HopperN + TRPR16 + Year,random=~1|Plot, data=pbdata_SEM),
@@ -482,6 +495,7 @@ SEM3 <- psem(lme(PlantBiomass ~ WORM_N + HopperN + SIR + NTs + NTm + PlantBiomas
 
 (SEM3a = summary(SEM3, .progressBar = T))
 
+# Check the significant clover interaction
 SEM4 <- psem(lme(PlantBiomass ~ WORM_N + HopperN + SIR + NTs + NTm + PlantBiomass16 + SOAL + TRPR + Year,random=~1|Plot, data=pbdata_SEM),
              lme(SOAL ~WORM_N + HopperN + SOALbase + Year,random=~1|Plot, data=pbdata_SEM),
              lme(TRPR ~WORM_N*HopperN + TRPR16 + Year,random=~1|Plot, data=pbdata_SEM),
@@ -577,6 +591,13 @@ fplot[,"EstimateScale"] = scales::rescale(abs(fplot$Estimate), to = c(1,6))
 fplot[,c("Response","Predictor", "EstimateScale")]
 
 # 2.0 Worm Extraction Plot analysis ----
+
+# This is the analysis of the 1-m^2 plots that I surveyed in the field next to the main experiment. This analysis is presented in the supplemental material of this manuscript.
+
+# It follows the same general steps as above for the experimental analysis
+
+# The only treatments are worm removal and addition
+
 # .... 2.0.1 Explore WE worm data ----
 jpeg(paste0("Stats_plots_from_",Sys.Date(),"/Worm_QCQA_WE_",Sys.Date(), ".jpeg"), units="in", width=7, height=7, res=600)
 ggplot(wormWE,aes(x=SeasonYear, y=WORM_N,color=Treatment)) + geom_boxplot() + theme_classic() + geom_jitter(height = 0) + scale_x_discrete(limits=c("Fall16","Spring17", "Fall17","Spring18", "Fall18"), labels = c("Fall '16","Spring '17", "Fall '17","Spring '18", "Fall '18")) + ylab("Earthworm (#)") + xlab("Season and Year") 

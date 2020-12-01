@@ -1,9 +1,14 @@
-# Analysis of cluster data
+# Analysis of Complex model data from the cluster
+# Robert W. Buchkowski
 # June 23 2020
 
-require(tidyverse)
-verbose = F
-loadcsv = F
+# The main purpose of this analysis is to fit the model data to the empirical data and summarize the model results. Several graphs are produced that are not part of the final paper.
+
+# This produces the fit results presented in Table 1 and Figure 6.
+
+require(tidyverse) # version 1.2.1
+verbose = F # Do you want extra graphs and analyses?
+loadcsv = F # Do you need to load the raw inputs from a cluster, if true you will need to run new model simulations, otherwise you can just load the ones provided.
 
 # Load in the data from field experiments -----
 
@@ -46,9 +51,8 @@ data2 <- readRDS("Data/fullmodeloutput_2020-06-22.rds")
 # Baseline parameter values, loaded for use in comparisons
 source("Scripts/parameters.R"); rm(yint)
 
-# get stable state variable values
-
-if(F){
+# get state variable values when they are at a stable equilibirum before the simulations start
+if(verbose){
   stable1 <- data2 %>% select(YSTABLE, Run) %>% filter(YSTABLE!=-2) %>% 
     mutate(NVAR = rep(colnames(data2)[2:8], length(unique(data2$Run))))
 }
@@ -71,6 +75,7 @@ saveRDS(PARMS, file = paste0("Data/PARMS_",Sys.Date(),".rds"))
 
 # Clean out memory
 rm(data2, PARMS)
+gc()
 
 # Match and select best runs ----
 
@@ -78,7 +83,6 @@ rm(data2, PARMS)
 # based on van der Vaart et al. 2015
 
 # The full dataset is too big to run, so I need to do it in parts. I will work with it by state variable
-
 write_rds(data3)
 
 MSD = data3 %>% group_by(Expt) %>%
@@ -108,7 +112,10 @@ datatomodel3 = datatomodel2 %>%
 
 errord = tibble(Run = unique(data3$Run))
 
+# List of state variables
 SV = c("W", "P", "H", "M", "N")
+
+# Get the individual fit for each state variable in a loop (because the full dataset is too big)
 for(i in 1:5){
   assign(paste0("errord", SV[i]), 
          data3[,c("Run","time", "Treatment","Expt",SV[i])] %>%
@@ -126,6 +133,7 @@ for(i in 1:5){
          )
 }
 
+# Combine the different errors into one file and clean out the separate ones
 errord = errordH %>% rename(H = fit) %>%
   full_join(
     errordW %>% rename(W = fit)
@@ -142,18 +150,20 @@ errord = errordH %>% rename(H = fit) %>%
 
 rm(errordH, errordM, errordN, errordP, errordW)
 
+# Find the best fit by summing across all state variables: remember this is OK becuase they are standardized above using Msd.
 errord = errord %>% mutate(fit = H + W + P + N + M) %>%
   select(Run, fit) %>%
   mutate(Best = ifelse(fit < quantile(fit, cut), "Yes", "No"))
 
-table(errord %>% select(Best)) # Confirm that there are only 50 Best runs
+# Confirm that there are only 50 Best runs
+table(errord %>% select(Best)) 
 
 # Save ID of selected Runs if you want
-if(T){
+if(verbose){
   errord %>% filter(Best == "Yes") %>% write_csv(paste0("Data/selected_runs_", Sys.Date(),".csv"))
 }
 
-# calculate R2 by treatment using the average model runs of best models
+# calculate R2 by treatment using the average model runs of best models and save it in data5
 bestruns = errord %>% filter(Best=="Yes") %>% select(Run) %>% pull()
 
 data5 = data3[data3$Run %in% bestruns,]
@@ -276,6 +286,7 @@ dev.off()
 parVT = read_rds("Data/PARMS_2020-06-22.rds") %>% left_join(errord) %>% 
   filter(!NPAR %in% c("Kappa","Tref_W", "Tref_P") & !is.na(fit))
 
+# Compare the variance for the best parameters and the rest using the 'var.test' function
 pvec = unique(parVT$NPAR)
 sigvec = rep(-1, length(pvec))
 for(i in 1:length(pvec)){
@@ -329,7 +340,7 @@ rm(data3)
 
 # Calculate distribution of feedback size ----
 
-# The following analysis produces the complex model data used in the simple model script to produce a comparison with the simple model. It also calculates the interaction effect size relative to the herbivore effect size and detritvore effect size 
+# The following analysis produces the complex model data used in the simple_model.R script. It also calculates the interaction effect size relative to the herbivore effect size and detritvore effect size 
 
 data2 <- readRDS("Data/fullmodeloutput_2020-06-22.rds")
 BEST <- read_csv("Data/selected_runs_2020-06-22.csv", 
@@ -352,6 +363,7 @@ runID = data3 %>% select(-time, -Treatment) %>% gather(-Run, key = StateVar, val
   filter(Total == 560) %>% select(Run) %>%
   filter(Run != "9481143743947965") # Get rid of problem Run!
 
+# Calcaulte the effects
 out0 = runID %>%
   left_join(
     data3
@@ -367,6 +379,7 @@ out0 = runID %>%
   select(time, Run, StateVar, IE, WE, HE) %>% 
   filter(!(StateVar %in% c("W", "H"))) 
 
+# A function for displaying scientific notation
 scientific <- function(x){
   ifelse(x==0, "0", parse(text=gsub("[+]", "", gsub("e", " %*% 10^", scales::scientific_format()(x)))))
 }
@@ -426,13 +439,13 @@ out2 = out1 %>%
                ncex = c(1, 0.5))
   )
 
-out3 = out2[1:(5*10000),] # First 10,000 used for comparison to the simple model
+out3 = out2[1:(5*10000),] # Take the first 10,000 model runs to compare with the simple model
 
 out4 = out2 %>% filter(Best == "Yes")
 
 out3 = out3 %>% bind_rows(out4) %>% distinct()
 
-# This is the data that is used in the simple model script to plot the comparison
+# This is the data that is used in the simple_model.R script to plot the comparison
 write_rds(out3, "Data/TrueLinearComplex.rds")
 
 out3 %>% select(Run) %>% 
@@ -441,8 +454,6 @@ out3 %>% select(Run) %>%
   ) %>% 
   select(-time) %>%
   write_rds("Data/TrueLinearComplex_StateVar.rds")
-  
-
 
 rm(data3)
 
@@ -458,7 +469,7 @@ variable_names <- c(
 
 # Plot the full interaction effects available the grasshopper and earthworm effects
 
-# Plot for the best fitting parameter sets only
+# Plot for the best fitting parameter sets only: Figure 6 in the main text
 png(paste0("modelresults_",Sys.Date(),"/interactioneffect.png"), width = 8, height = 5, units = "in", res = 600)
 out1 %>% filter(Best == "Yes") %>% select(-Best, -IEacc, -IEpred) %>% gather(-Run, -StateVar, key = Effect, value = value) %>%
   mutate(value = 100*abs(value) + 1e-6) %>%

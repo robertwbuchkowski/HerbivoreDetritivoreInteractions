@@ -1,11 +1,13 @@
 # Analysis of the simple model and convenience code for plotting the results of the complex model in the same format. 
-
-#The complex model output are available in the data provided, but were run separately using other scripts on a cluster.
+# Robert W. Buchkowski
+# Dec. 2020
+# Note: The complex model output are available in the data provided, but are produced in a different script using a computing cluster.
+# Note: On line 365, you can load in the model data if you do not want to simulate them. My machine runs the entire script in about 5 minutes.
 
 library(FME) # version 1.3.5
-library(tidyverse)
+library(tidyverse) # version 1.2.1
 
-# How many replicates do you want?
+# The number of replicates for the two versions of the simple model:
 REPS = 10000
 
 # Show the equilibrium of the complex model to help with parameter conversion for these models ----
@@ -20,7 +22,9 @@ rm(Equilibrium)
 # m2 = Detritivores only in the model
 # m3 = Herbivores only in the model
 # m4 = Herbivores and detritivores both in the model
-test <-function(parms){
+test <-function(
+  parms # A function of the model parameters
+  ){
   with(as.list(c(parms)),{
     
     out = data.frame(
@@ -47,7 +51,8 @@ test <-function(parms){
                               (tw*(k*q*tp + l*q*tp + k*q*Vhp + l*q*Vhp + l*tp*Vpn + eh*l*Vhp*Vpn + q*tp*Vwl - ew*q*tp*Vwl + q*Vhp*Vwl - ew*q*Vhp*Vwl)))
       )
     
-    # Set the best fitting criteria based on reasonable relationships for an old-field..NOT FIT TO ACTUAL DATA!
+    # Produce a list of model outputs that are reasonable for an old field, these are not used in the paper.
+    # Set based on reasonable relationships for an old-field..NOT FIT TO ACTUAL DATA!
     if(all(c(out[out$nvec == "N",-1] < out[out$nvec == "P",-1],
           out[out$nvec == "N",-1] < out[out$nvec == "L",-1],
           out[out$nvec == "H",-1] < 100*out[out$nvec == "P",-1],
@@ -67,11 +72,9 @@ test <-function(parms){
   
 }
 
-# Generate lists to save the data for 10,000 parameter sets
+# Generate lists to save the data for 10,000 parameter sets and those parameter sets
 outlist <- vector(mode = "list", length = REPS)
 paramlist <- vector(mode = "list", length = REPS)
-
-# 1484.098
 
 # Run 10,000 random parameter sets
 t1 = Sys.time()
@@ -80,13 +83,13 @@ for(i in 1:REPS){
   # Randomly draw the new parameters: See notes for how they compare to the complex model
   params = c(Vpn = rlnorm(1,meanlog = log(0.3794274), sdlog = 0.3536), # Equals A_P*Vpf*P/(Kpf + N*) from the complex model
              tp = rlnorm(1,meanlog = log(0.000005/74.6263897), sdlog = 0.3536), # Equals tp/P* in the complex model
-             th = rlnorm(1,meanlog = log(14.84098), sdlog = 0.3536), # Equals th/H* in the complex model : MODIFIED TO MATCH EQM
-             Vhp = rlnorm(1,meanlog = log(0.01888764), sdlog = 0.3536), # Equals A_W*Vhp*H calculated at 25C in the complex model : MODIFIED TO MATCH EQM
+             th = rlnorm(1,meanlog = log(14.84098), sdlog = 0.3536), # Equals th/H* in the complex model : INCREASED TWO ORDERS OF MAGNITUDE (OOM) TO MATCH EQM
+             Vhp = rlnorm(1,meanlog = log(0.01888764), sdlog = 0.3536), # Equals A_W*Vhp*H calculated at 25C in the complex model : INCREASED TWO OOM TO MATCH EQM
              IN = rlnorm(1,meanlog = log(0.02), sdlog = 0.3536), # Same as the complex model
              q = rlnorm(1,meanlog = log(0.1), sdlog = 0.3536),# Same as the complex model
              k = rlnorm(1,meanlog = log(0.005713002), sdlog = 0.3536), # Equals: Vlm*M/(Klm + M) + A_W*Vlw*W, where Vlm and Klm are modified by temperature so they are calculated at 25C
-             Vwl = rlnorm(1,meanlog = log(3.477668e-03), sdlog = 0.3536), # Equals A_W*Vwl*W calculated at 25C in the complex model
-             tw = rlnorm(1,meanlog = log(9.672375e-06), sdlog = 0.3536), # Equals tw/W* in the complex model
+             Vwl = rlnorm(1,meanlog = log(3.477668e-03), sdlog = 0.3536), # Equals A_W*Vwl*W calculated at 25C in the complex model : INCREASED TWO OOM TO MATCH EQM
+             tw = rlnorm(1,meanlog = log(9.672375e-06), sdlog = 0.3536), # Equals tw/W* in the complex model : INCREASED TWO OOM TO MATCH EQM
              l = rlnorm(1,meanlog = log(1e-4), sdlog = 0.3536), # Same as the complex model
              eh = rlnorm(1,meanlog = log(0.7), sdlog = 0.3536), # Same as the complex model
              ew = rlnorm(1,meanlog = log(0.02), sdlog = 0.3536)) # Same as SUEwl in the complex model
@@ -107,8 +110,7 @@ for(i in 1:REPS){
 # Bind the parameter sets
 outlist2 = do.call("rbind", outlist)
 
-# Save range in pool sizes for m4:
-
+# Save range in pool sizes for m4, the model with both herbivores and detritivores for later comparison.
 DCeqm = outlist2 %>% select(nvec, m4) %>%
   group_by(nvec) %>%
   summarise(lq = quantile(m4, 0.25),
@@ -125,7 +127,7 @@ outlist2[,"IE"] = (outlist2$m4 - outlist2$m3 - outlist2$m2 + outlist2$m1) # Inte
 outlist2[,"IEpred"] = outlist2[,"WE"] + outlist2[,"HE"] # Linear combination of herbivore and detritivore effects
 outlist2[,"IEacc"] = outlist2$m4 - outlist2$m1 # Combined effect
 
-# Plotting preparation
+# Plotting preparation colors and symbols: Not used in the final version of the plots, but is helpful if the user wants to make scatter plots
 outlist2[,"ncol"] = ifelse(outlist2$nvec == "P", "#009E73",
                            ifelse(outlist2$nvec == "L", "#E69F00",
                                   ifelse(outlist2$nvec == "N", "#56B4E9",
@@ -160,13 +162,13 @@ test2 <- function(Ni){
     # Randomly draw the new parameters: See notes for how they compare to the complex model
     params = c(Vpn = rlnorm(1,meanlog = log(0.005084359), sdlog = 0.3536), # Equals A_P*Vpf/(Kpf + N*) from the complex model
                tp = rlnorm(1,meanlog = log(0.000005/74.6263897), sdlog = 0.3536), # Equals tp/P* in the complex model
-               th = rlnorm(1,meanlog = log(14.84098), sdlog = 0.3536), # Equals th/H* in the complex model : MODIFIED TO MATCH EQM
-               Vhp = rlnorm(1,meanlog = log(1.401555), sdlog = 0.3536), # Equals A_W*Vhp calculated at 25C in the complex model : MODIFIED TO MATCH EQM
+               th = rlnorm(1,meanlog = log(14.84098), sdlog = 0.3536), # Equals th/H* in the complex model : INCREASED TWO OOM TO MATCH EQM
+               Vhp = rlnorm(1,meanlog = log(1.401555), sdlog = 0.3536), # Equals A_W*Vhp calculated at 25C in the complex model : INCREASED TWO OOM TO MATCH EQM
                IN = rlnorm(1,meanlog = log(0.02), sdlog = 0.3536), # Same as the complex model
                q = rlnorm(1,meanlog = log(0.1), sdlog = 0.3536),# Same as the complex model
                k = rlnorm(1,meanlog = log(0.005713002), sdlog = 0.3536), # Equals: Vlm*M/(Klm + M) + A_W*Vlw*W, where Vlm and Klm are modified by temperature so they are calculated at 25C
-               Vwl = rlnorm(1,meanlog = log(3.363731e-04), sdlog = 0.3536), # Equals A_W*Vwl calculated at 25C in the complex model
-               tw = rlnorm(1,meanlog = log(9.672375e-06), sdlog = 0.3536), # Equals tw/W* in the complex model
+               Vwl = rlnorm(1,meanlog = log(3.363731e-04), sdlog = 0.3536), # Equals A_W*Vwl calculated at 25C in the complex model : INCREASED TWO OOM TO MATCH EQM
+               tw = rlnorm(1,meanlog = log(9.672375e-06), sdlog = 0.3536), # Equals tw/W* in the complex model : INCREASED TWO OOM TO MATCH EQM
                l = rlnorm(1,meanlog = log(1e-4), sdlog = 0.3536), # Same as the complex model
                eh = rlnorm(1,meanlog = log(0.7), sdlog = 0.3536), # Same as the complex model
                ew = rlnorm(1,meanlog = log(0.02), sdlog = 0.3536)) # Same as SUEwl in the complex model
@@ -288,6 +290,7 @@ test2 <- function(Ni){
     
   }
   
+  # Create a dataframe. This data frame also has rmax to check for stability.
   output = data.frame(nvec =c("P","N","L","H","W","rmax"),
                        m1 = m1,
                        m2 = m2,
@@ -295,6 +298,8 @@ test2 <- function(Ni){
                        m4 = m4,
                        N = Ni)
   
+  # Produce a list of model outputs that are reasonable for an old field, these are not used in the paper.
+  # Set based on reasonable relationships for an old-field..NOT FIT TO ACTUAL DATA!
   if(all(c(output[output$nvec == "N",-1] < output[output$nvec == "P",-1],
            output[output$nvec == "N",-1] < output[output$nvec == "L",-1],
            output[output$nvec == "H",-1] < 100*output[output$nvec == "P",-1],
@@ -310,19 +315,21 @@ test2 <- function(Ni){
   return(list(output, c(params, N = Ni)))
 }
 
-# Run the model
+# Run the model: Note if you choose parameter values that do not produce a stable model for all four cases then this will run forever, just FYI...
 out2 = lapply(seq(1,REPS,1), FUN = test2)
 
-# Reorganize the data
+# Reorganize the data to extract the model results
 out3 = vector(mode = "list", length = REPS)
 
+# Flip the list:
 for(j in 1:REPS){
   out3[[j]] = out2[[j]][[1]]
 }
 
+# Join the list into a data frame
 out4 = do.call("rbind", out3)
 
-# Save equilibrium
+# Save equilibrium for comparisons across models
 LVeqm = out4 %>% select(nvec, m4) %>%
   group_by(nvec) %>%
   summarise(lq = quantile(m4, 0.25),
@@ -330,7 +337,7 @@ LVeqm = out4 %>% select(nvec, m4) %>%
             uq = quantile(m4, 0.75)) %>%
   filter(nvec != "rmax")
 
-
+# Remove the animals and the stability test results
 out4 = out4[!(out4$nvec %in% c("H", "W", "rmax")),]
 
 # Calculate effects
@@ -341,7 +348,7 @@ out4[,"IEpred"] = out4[,"WE"] + out4[,"HE"] # Linear combination of herbivore an
 out4[,"IEacc"] = out4$m4 - out4$m1 # Combined effect
 
 
-# Plotting preparation
+# Plotting preparation colors and symbols: Not used in the final version of the plots, but is helpful if the user wants to make scatter plots
 out4[,"ncol"] = ifelse(out4$nvec == "P", "#009E73",
                            ifelse(out4$nvec == "L", "#E69F00",
                                   ifelse(out4$nvec == "N", "#56B4E9",
@@ -364,8 +371,8 @@ out4 = read_csv("Data/simplemodel_LV_Nov2020.csv")
 # Plot the most complex model ----
 
 # Load in the equilibrium cluster data (This data is calculated using the script "complex_model_non-eqm_to_cluster.R")
-
-if(F){ # Only necessary if loading data directly from cluster. Provided data is loaded below
+# Running the code in the following 'if' statement is only necessary if loading data directly from cluster. Provided data is loaded below
+if(F){ 
   dirtoload = "Model_eqm_Jun2020/"
   
   ftoload = list.files(dirtoload)
@@ -433,9 +440,10 @@ if(F){ # Only necessary if loading data directly from cluster. Provided data is 
   
 }
 
+# Load in the provided data:
 data2 = read_rds("Data/complex_model_10000_eqm.rds") %>% distinct()
 
-# Analyze the data
+# Analyze the data for effects
 data2a = data2 %>% as_tibble() %>% 
   gather(-Treatment, -Stable, -ID, - Type, key = StateVar, value = biomass) %>%
   filter(Stable == 1) %>% select(-Stable)
@@ -472,18 +480,16 @@ data2c = data2b %>%
 
 data2c$ncol = as.character(data2c$ncol)
 
-# Split the two types
+# Split the two types: Complex: Equilibrium and Complex: Non-equilibrium
 data2c_noneqm = data2c %>% filter(Type == "NON-EQM") %>% select(-Type)
 data2c = data2c %>% filter(Type == "EQM") %>% select(-Type)
 
-# Load in the non-equilibrium cluster data
+# Load in the field simulation data: These are just a subset of the data used for the approximate Bayesian computaiton.
 outfinal3 = read_rds("Data/TrueLinearComplex.rds")
-
 outfinal3$ncol = as.character(outfinal3$ncol)
 
 
 # Plot the equilibria values together
-
 comeqm = DCeqm %>%
   mutate(ID = "Simple: Donor-controlled") %>%
   mutate(Model = "S-DC") %>%
@@ -538,8 +544,14 @@ cmsv
 dev.off()
 
 # Plot all four models together ----
+
+# Three functions for scientific notation in the graphs:
 scientific <- function(x){
   ifelse(x==0, "0", parse(text=gsub("[+]", "", gsub("e", " %*% 10^", scales::scientific_format()(x)))))
+}
+
+scientific2 <- function(x){
+  ifelse(x==0, "0", parse(text=gsub("1 %*% ","",x = gsub("[+]", "", gsub("e", " %*% 10^", scales::scientific_format()(x))), fixed = T)))
 }
 
 scientific3 <- function(x){
@@ -547,7 +559,8 @@ scientific3 <- function(x){
   ifelse(x==0, "0", gsub("[+]", "", gsub("e", " %*% 10^", scales::scientific_format()(x))))
 }
 
-# This function with plot the outcomes by state variable
+
+# This function will plot the outcomes by state variable
 toplot_int <- function(selected_pool, # Which state variable (P, N, L)?
                        xlabel, # What should it be called in the axis label?
                        Yvec, # Where should the text labels be vertically?
@@ -612,7 +625,7 @@ toplot_int <- function(selected_pool, # Which state variable (P, N, L)?
   return(lalala)
 }
 
-# Run the plant plot
+# Run the plant plot (Figure 2 in the manuscript):
 a = toplot_int(selected_pool = "P",
            xlabel = "Interaction effect onto plants",
            Yvec = c(0.3, 0.5, 0.4, 0.8, 0.5)+ 0.05,
@@ -622,7 +635,7 @@ png(paste0("Plots/Figure5_Nov2020_","P",".png"), width = 7, height = 4, units = 
 a
 dev.off()
 
-# Run the inorganic nitrogen plot
+# Run the inorganic nitrogen plot:
 aN = toplot_int(selected_pool = "N",
                xlabel = "Interaction effect onto inorganic N",
                Yvec = c(0.95, 0.85, 0.85, 0.75, 0.85)+ 0.05,
@@ -633,7 +646,7 @@ png(paste0("Plots/Figure5_Nov2020_","N",".png"), width = 7, height = 4, units = 
 aN
 dev.off()
 
-# Run the litter plot
+# Run the litter plot:
 aL = toplot_int(selected_pool = "L",
                xlabel = "Interaction effect onto litter",
                Yvec = c(1.05, 0.85, 0.95, 0.85, 0.95)+ 0.05,
@@ -644,8 +657,8 @@ png(paste0("Plots/Figure5_Nov2020_","L",".png"), width = 7, height = 4, units = 
 aL
 dev.off()
 
-# Get the abundance data from the complex model and plot it -----
-
+# Get the abundance data from the Complex model: field simulation and plot it -----
+# This is the plot showing grasshopper and earthworm abundance: Appendix 2: Figure 1D
 datahist <- data2 %>%
   filter(Stable == 1) %>% select(Treatment, W, H, Type) %>%
   bind_rows(
@@ -664,10 +677,6 @@ datahist <- data2 %>%
 
 datahist$Type <- factor(datahist$Type, levels = c("Equilibrium", "Non-equilibrium", "Field simulation"))
 datahist$Treatment <- factor(datahist$Treatment, levels = c("Neither", "Herbivore", "Detritivore", "Both"))
-
-scientific2 <- function(x){
-  ifelse(x==0, "0", parse(text=gsub("1 %*% ","",x = gsub("[+]", "", gsub("e", " %*% 10^", scales::scientific_format()(x))), fixed = T)))
-}
 
 cmsv2 = datahist %>%
   gather(-Treatment, -Type, key = StateVar, value = Biomass) %>%
@@ -689,5 +698,5 @@ dev.off()
 
 # Combine the N, L, abundance equilibrium, and abundance in complex model plots for the supplemental ----
 png("Plots/supplementary_figure_model_comparison.png", width = 14, height = 8, units = "in", res = 600)
-cowplot::plot_grid(aN,aL, cmsv, cmsv2, labels = "AUTO")
+cowplot::plot_grid(aN,aL, cmsv, cmsv2, labels = "AUTO") # Appendix S2: Figure S1
 dev.off()

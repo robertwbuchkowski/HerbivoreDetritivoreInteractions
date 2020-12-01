@@ -2,6 +2,8 @@
 
 # meant to be run in-line with in the script "Statistical_Analysis.R"
 
+# This script cleans up the empirical data
+
 verbose = F # set to true if running dynamically to see analysis at the bottom
 createmodeldata = F # set true if you want to re-create the model data from the raw data frames
 
@@ -162,7 +164,7 @@ RDAdata_1 = percentcover %>% separate(SeasonYear, into=c("Season", "Year"), sep=
   gather(-Plot, -Year, key=Species, value=Cover) %>% group_by(Plot, Year, Species) %>% summarise(Cover = mean(Cover)) %>% spread(key=Species, value=Cover) %>% # create full data set of plant cover
   select(Plot:VICR) %>% gather(-Plot, -Year, key=Species, value=Cover)
 
-RDAdata = RDAdata_1 %>% #right_join(RDAdata_1 %>% group_by(Species) %>% summarize(Cover = mean(Cover)) %>% filter(Cover >= 0.5) %>% ungroup() %>% select(Species)) %>% # subset that data set to only include plants with high cover
+RDAdata = RDAdata_1 %>%
   spread(key=Species, value=Cover) %>%
   full_join(pbdata %>% select(Plot:SIR)) %>% ungroup() %>%
   mutate(wxh = paste0(ifelse(HopperAdd=="Add", "H",ifelse(HopperAdd=="Frozen","fH","0")),ifelse(Addition=="Add", "W", ifelse(Addition=="Frozen","fW","0")))) %>%
@@ -175,10 +177,6 @@ rm(RDAdata_1)
 # WE plots
 RDAWdata = percentcoverWE %>% select(-Date, - Date2, -Treatment) %>% gather(-Plot, -Year, key=Species, value=Cover) %>% group_by(Plot, Year, Species) %>% summarize(Cover= mean(Cover)) %>% ungroup() %>% spread(key=Species, value=Cover) %>%
   right_join(pbdataWE)
-
-
-
-
 
 # ---- Convert data to the model formats -----
 
@@ -399,15 +397,13 @@ if(createmodeldata){
   
   summary(m1)
   
-  # curve(coef(m1)[1]*cos(2*3.14/365*x + coef(m1)[3])+coef(m1)[2], 0, 365, col="green", add=T)
-  
   LTtemp = function(doy){
     
     -12.8244*cos(2*3.14/365*doy-0.3666)+281.9846
     
   }
   
-  pdf("temp_approx.pdf")
+  pdf("temp_approx.pdf") # This is Appendix S1: Figure S2
   plot(TempK~DOY, data=climate2[order(climate2$DOY),], type="l")
   points(seq(1,365), LTtemp(seq(1,365)), type="l", col="purple")
   dev.off()

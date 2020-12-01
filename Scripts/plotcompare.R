@@ -1,4 +1,6 @@
-# Plotting the comparison functions
+# A function for plotting the comparison between model simulations.
+
+# This function is used in the script: complex_model_direct_model_multiple_model.R
 
 plotcompare <- function(OUTPUTALL, typevar){
   outdataCOMP = datatomodel2a %>% 
