@@ -488,8 +488,15 @@ data2c = data2c %>% filter(Type == "EQM") %>% select(-Type)
 outfinal3 = read_rds("Data/TrueLinearComplex.rds")
 outfinal3$ncol = as.character(outfinal3$ncol)
 
+# Take out the 48 "best fitting" simulations that were added to this one.
+outfinal3 %>% filter(Best == "No") %>%
+  bind_rows(
+    outfinal3 %>% 
+      filter(Best == "Yes") %>%
+      filter(Run %in% c("2332952347464863", "7303471844607670")) # Keep two best fitting simulations because there were 2 in the original sample.
+  )
 
-# Plot the equilibria values together
+# Plot the equilibria values together: Only works if you ran the models, otherwise, load the data below
 comeqm = DCeqm %>%
   mutate(ID = "Simple: Donor-controlled") %>%
   mutate(Model = "S-DC") %>%
@@ -526,9 +533,8 @@ comeqm = DCeqm %>%
     tibble(nvec = c("H", "L", "P", "W", "N"),
            nvec2 = c("Herbivore", "Litter", "Plant", "Detritivore", "Inorganic N")
     )
-  )
-
-comeqm %>% write_csv("Data/compeqm_Nov2020.csv")
+  ) %>% 
+  write_csv("Data/compeqm_Nov2020.csv")
 
 comeqm = read_csv("Data/compeqm_Nov2020.csv")
 
