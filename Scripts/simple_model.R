@@ -52,7 +52,7 @@ test <-function(
       )
     
     # Produce a list of model outputs that are reasonable for an old field, these are not used in the paper.
-    # Set based on reasonable relationships for an old-field..NOT FIT TO ACTUAL DATA!
+    # Set based on reasonable relationships for an old-field..NOT FIT TO ACTUAL DATA--NOT USED IN THE MS!
     if(all(c(out[out$nvec == "N",-1] < out[out$nvec == "P",-1],
           out[out$nvec == "N",-1] < out[out$nvec == "L",-1],
           out[out$nvec == "H",-1] < 100*out[out$nvec == "P",-1],
@@ -371,7 +371,7 @@ out4 = read_csv("Data/simplemodel_LV_Nov2020.csv")
 # Plot the most complex model ----
 
 # Load in the equilibrium cluster data (This data is calculated using the script "complex_model_non-eqm_to_cluster.R")
-# Running the code in the following 'if' statement is only necessary if loading data directly from cluster. Provided data is loaded below
+# Running the code in the following 'if' statement is only necessary if loading data directly from a cluster run. The data provided on Figshare is loaded below
 if(F){ 
   dirtoload = "Model_eqm_Jun2020/"
   

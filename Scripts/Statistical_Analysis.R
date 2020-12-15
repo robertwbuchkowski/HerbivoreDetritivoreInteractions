@@ -39,6 +39,7 @@ summary(multcomp::glht(m1, linfct = multcomp::mcp(Season="Tukey")))
 
 # SUMMARY: LUM not well manipulated by treatments, but AP was well manipulated. LUM actually higher in removal treatments, which is consistent with their ecological role as a primary colonizer to worm-free areas. Soil temperautre, season, and treatment determine the number of worms removed. Can use SoilTavg as a covariate to models considering the full worm numbers
 
+# Plot the earthworm data
 jpeg(paste0("Stats_plots_from_",Sys.Date(),"/Worm_QCQA_Expt_",Sys.Date(), ".jpeg"), units="in", width=7, height=7, res=600)
 wormdata2 %>% ggplot(aes(x=SeasonYear, y=WORM_N, color=Addition)) + geom_boxplot() + geom_jitter() + theme_classic() + scale_color_discrete(labels = c("Add", "Control", "Remove")) + scale_x_discrete(limits=c("Spring16", "Fall16","Spring17", "Fall17","Spring18", "Fall18"), labels = c("Spring '16", "Fall '16","Spring '17", "Fall '17","Spring '18", "Fall '18")) + ylab("Earthworms (#)") + xlab("Season and Year")
 dev.off()
@@ -49,6 +50,7 @@ dev.off()
 
 # ... 1.0.2 Correct worm data for variable extraction efficiency ----
 
+# Create a dataframe with only fall 2017 and 2018 data
 wormdata3 = wormdata2 %>% filter(SeasonYear == "Fall17"|SeasonYear == "Fall18")
 
 ch4_correctworm0 <- lm(WORM_N ~ VWCavg + SoilTavg + CloudCover + Air_Temp, data= wormdata3); summary(ch4_correctworm0) # least significant CloudCover and Air_Temp
@@ -76,8 +78,7 @@ pbdata = pbdata %>%
   rename(WORM_N_old = WORM_N, AP_N_old = AP_N) %>%
   rename(WORM_N = WORM_N_STD, AP_N = AP_N_STD)
 
-# Replace Earthworm in the RDA datafile
-
+# Replace Earthworm in the RDA datafile for running the redundancy analysis
 RDAdata = RDAdata %>% rename(Earthworm_old = Earthworm, AP_N_old = AP_N) %>% 
   left_join(pbdata %>% select(Plot, Year, WORM_N, AP_N)) %>%
   rename(Earthworm = WORM_N) %>%
@@ -88,7 +89,6 @@ pbdata %>% ggplot(aes(x = WORM_N_old, y = WORM_N, shape=Year, color = Addition))
 dev.off()
 
 # .... Export pbdata to RDS file for using in other code sections
-
 write_rds(pbdata, "Data/pbdata.rds")
 
 # .. 1.1 Linear models --------------------
@@ -96,18 +96,22 @@ write_rds(pbdata, "Data/pbdata.rds")
 # A function that runs the different linear models with and without interactions
 # This function keeps the following code clean and allows me to change variable specifications without copying the code multiple times
 linearmodels<- function(inputdata, inter = T){
+  # Plant model
   inputdata[,"Base16"] = inputdata$PlantBiomass16
   PBinter = lmer(PlantBiomass ~ WORM_N*HopperN + Year + Base16 + (1|Plot), data= inputdata)
   PBfinal = lmer(PlantBiomass ~ WORM_N + HopperN + Year + Base16 + (1|Plot), data= inputdata)
   
+  # Microbial biomass (SIR) model
   inputdata[,"Base16"] = inputdata$SIR16
   SIRinter = lmer(SIR ~ WORM_N*HopperN + Base16 + Year + (1|Plot), data= inputdata)
   SIRfinal = lmer(SIR ~ WORM_N + HopperN + Base16 + Year + (1|Plot), data= inputdata)
   
+  # Field nitrogen mineralization model
   inputdata[,"Base16"] = inputdata$NTs16
   NTsinter = lmer(log(NTs) ~ WORM_N*HopperN + Base16 + Year + (1|Plot), data= inputdata, na.action = na.omit)
   NTsfinal = lmer(log(NTs) ~ WORM_N+ HopperN + Base16 + Year + (1|Plot), data= inputdata, na.action = na.omit)
   
+  # Laboratory nitrogen mineralization model
   inputdata[,"Base16"] = inputdata$NTm16
   NTminter = lmer(NTm ~ WORM_N*HopperN + Base16 + Year + (1|Plot), data= inputdata)
   NTmfinal = lmer(NTm ~ WORM_N + HopperN + Base16 + Year + (1|Plot), data= inputdata)
@@ -134,6 +138,8 @@ linearmodels(pbdata, inter= F) # Without interaction
 linearmodels(pbdata %>% mutate(WORM_N = WORM_N_old))
 
 # ... 1.1.3 Model analysis with high quality earthworm data ----
+
+# Find the quantiles graphically to subset only high quality data
 pbdata %>% select(Year, WORM_N_old) %>% group_by(Year) %>% summarize(lq = quantile(WORM_N_old, c(0.25)),med = quantile(WORM_N_old, c(0.5)), uq = quantile(WORM_N_old, c(0.75)))
 
 pbHQ = pbdata %>% filter(Decimated ==0) %>% 
@@ -154,7 +160,7 @@ linearmodels(pbdata %>% mutate(WORM_N = AP_N))
 linearmodels(pbdata %>% mutate(WORM_N = AP_N_old))
 # ... 1.1.6 Model analysis of two years separately ----
 
-# A new version of the 'linearmodels' function that runs the years separately
+# A new version of the 'linearmodels' function that runs the years separately: The variable names are the same
 YearSeparateModels<- function(inputdata, inter = T){
   
   inputdata[,"Base16"] = inputdata$PlantBiomass16
@@ -194,7 +200,6 @@ YearSeparateModels(pbdata %>% filter(Year == "18"))
 # ... 1.1.7 Plot the results of the univariate linear models ----
 
 # This plot is found in the Appendix S1: Figure S9
-
 pbdata = pbdata %>% mutate(Year = as.factor(Year))
 
 jpeg(paste0("Stats_plots_from_",Sys.Date(),"/Figure3_",Sys.Date(), ".jpeg"), units="in", width=6, height=8, res=600)
@@ -324,10 +329,10 @@ dev.off()
 # Scale the data with a hellinger transformation
 planthel = decostand(RDAdata %>% select(ACMI:VICR), "hellinger")
 
-# Interaction
+# Interaction (RDA with an interaction term)
 rda1_1 = rda(planthel~ Earthworm*Grasshopper + Year + PlantBiomass + BioCtrl + Condition(SoilV) + Condition(PlantBiomass16) + Condition(Grass16) + Condition(TRPR16)  + Condition(SoilAdded_Mar16), data=RDAdata)
 
-# No interaction
+# No interaction (RDA without an interaction term)
 rda1 = rda(planthel~ Earthworm + Grasshopper + Year + PlantBiomass + BioCtrl + Condition(SoilV) + Condition(PlantBiomass16) + Condition(Grass16) + Condition(TRPR16)  + Condition(SoilAdded_Mar16), data=RDAdata)
 
 anova(rda1, rda1_1) # interaction not significant
@@ -337,7 +342,7 @@ coef(rda1)
 
 (R2 <- RsquareAdj(rda1)$r.squared)
 
-# Gloabl test of the RDA result
+# Global test of the RDA result
 anova.cca(rda1, step=1000)
 # Tests of all canonical axes
 anova.cca(rda1, by="axis", step=1000)
@@ -346,9 +351,10 @@ anova.cca(rda1, by="terms", step=1000)
 # Tests of all terms
 anova.cca(rda1, by="margin", step=1000)
 
+# Get the proportion of variation explained
 (prop_explained = round(rda1$CCA$eig/rda1$tot.chi*100,1))
 
-dev.off()
+# Plot the RDA: Figure 4 in the main text
 jpeg(paste0("Stats_plots_from_",Sys.Date(),"/RDA_Expt_",Sys.Date(), ".jpeg"), units="in", width=7, height=7, res=600)
 plot(rda1, type="n", xlab=paste0("RDA1 (", prop_explained[1],"%)"), ylab=paste0("RDA2 (", prop_explained[2],"%)"))
 points(rda1, display= "sites", choices=c(1,2), scaling=2, cex=0.5, col="grey",pch=ifelse(RDAdata$Year=="17", 19, 17))
@@ -381,7 +387,7 @@ dev.off()
 
 # .... 1.2.1 Cover and worm analysis of the data-----
 
-# This analysis of earthworms and specific plant cover is not included in the manuscript
+# This analysis of earthworms and specific plant cover is not included in the manuscript, but the code is here for those interested in running it.
 coverworm = percentcover %>% separate(SeasonYear, into=c("Season", "Year"), sep=-2) %>% select(-Date, -ExperimentStart, - DOE, -Season) %>% gather(-Plot, -Year, -DOY, key=Plant, value=Cover) %>% 
   left_join(read_csv("Data/plant_groups_ch4.csv")) %>% # can add this information
   filter(DOY!=150) %>% # remove second spring survey so 2017 and 2018 have the same # of surveys
@@ -436,6 +442,7 @@ pbdata_SEM = pcdata %>%
               "TRPR16", "SOALbase"),list(scale = scale)) %>%
   mutate(Year = as.character(Year))
 
+# Reorganize the data for an SEM
 pbdata_SEM = pbdata_SEM %>% select(PlantBiomass, Plot, Year, WORM_N_scale:SOALbase_scale) %>%
   gather(-PlantBiomass, -Plot, -Year,key = Variable, value = value) %>%
   separate(Variable, into=c("Variable", "sclae"), sep="_s") %>%
@@ -513,7 +520,7 @@ SEM4 <- psem(lme(PlantBiomass ~ WORM_N + HopperN + SIR + NTs + NTm + PlantBiomas
 
 (SEM4a = summary(SEM4, .progressBar = T))
 
-# Try the final model with Endogeic earthworms
+# Try the final SEM with Endogeic earthworms instead of total earthworms
 SEM5 <- psem(lme(PlantBiomass ~ AP_N + HopperN + SIR + NTs + NTm + PlantBiomass16 + SOAL + TRPR + Year,random=~1|Plot, data=pbdata_SEM),
              lme(SOAL ~AP_N + HopperN + SOALbase + Year,random=~1|Plot, data=pbdata_SEM),
              lme(TRPR ~AP_N + HopperN + TRPR16 + Year,random=~1|Plot, data=pbdata_SEM),
@@ -608,6 +615,7 @@ ggplot(wormWE,aes(x=SeasonYear, y=AP_N,color=Treatment)) + geom_boxplot() + them
 
 ggplot(wormWE,aes(x=SeasonYear, y=LUM_N,color=Treatment)) + geom_boxplot() + theme_classic() + geom_jitter(height = 0) + scale_x_discrete(limits=c("Fall16","Spring17", "Fall17","Spring18", "Fall18"), labels = c("Fall '16","Spring '17", "Fall '17","Spring '18", "Fall '18")) + ylab("Earthworm (#)") + xlab("Season and Year") 
 
+# Linear models of earthworm abundance by treatment and abiotic variables (AP = Endogeic; LUM = Epigeic-Anecic; WORM = total)
 summary(lmer(WORM_N~Treatment + DOE + SoilTavg + CloudCover + (1|Plot), data= wormWE %>% filter(DOE > 500)))
 summary(lm(AP_N~Treatment + DOE+ SoilTavg + CloudCover, data= wormWE %>% filter(DOE > 500)))
 summary(lm(LUM_N~Treatment + DOE+ SoilTavg + CloudCover, data= wormWE %>% filter(DOE > 500))) # not significantly reduced
@@ -628,35 +636,43 @@ pbdataWE = pbdataWE %>%
 
 WEmodels = vector("list", 4)
 
+#Plant biomass
 WEmodels[[1]] = lmer(PlantBiomass~WORM_N + PlantBiomass16 + Year + (1|Plot), data= pbdataWE); summary(WEmodels[[1]])
 plot(WEmodels[[1]])
 plot(resid(WEmodels[[1]])~pbdataWE$WORM_N)
 
+# Microbial biomass (SIR)
 WEmodels[[2]] = lmer(SIR~WORM_N + SIR16 + Year + (1|Plot), data= pbdataWE); summary(WEmodels[[2]])
 plot(WEmodels[[2]])
 plot(resid(WEmodels[[2]])~pbdataWE$WORM_N)
 
+# Field nitrogen mineralization
 WEmodels[[3]] = lmer(NTs~WORM_N + NTs16 + Year + (1|Plot), data= pbdataWE); summary(WEmodels[[3]])
 plot(WEmodels[[3]])
 plot(resid(WEmodels[[3]])~pbdataWE$WORM_N)
 
+# Laboratory nitrogen mineralizaiton potential
 WEmodels[[4]] = lmer(NTm~WORM_N + NTm16 + Year + (1|Plot), data= pbdataWE); summary(WEmodels[[4]])
 plot(WEmodels[[4]])
 plot(resid(WEmodels[[4]])~pbdataWE$WORM_N)
 
 # ... 2.1.2 Model analysis of two years separately ----
+# Plant biomass
 W_PBm17 = lm(PlantBiomass~WORM_N + PlantBiomass16, data= pbdataWE %>% filter(Year=="17")); summary(W_PBm17)
 
 W_PBm18 = lm(PlantBiomass~WORM_N + PlantBiomass16, data= pbdataWE %>% filter(Year=="18")); summary(W_PBm18)
 
+# Microbial biomass (SIR)
 W_S17 = lm(SIR~WORM_N + SIR16, data= pbdataWE %>% filter(Year=="17")); summary(W_S17)
 
 W_S18 = lm(SIR~WORM_N + SIR16, data= pbdataWE %>% filter(Year=="18")); summary(W_S18)
 
+# Field nitrogen mineralization
 W_Ns17 = lm(NTs~WORM_N + NTs16, data= pbdataWE %>% filter(Year=="17")); summary(W_Ns17)
 
 W_Ns18 = lm(NTs~WORM_N + NTs16, data= pbdataWE %>% filter(Year=="18")); summary(W_Ns18)
 
+# Laboratory nitrogen mineralizaiton potential
 W_Nm17 = lm(NTm~WORM_N + NTm16, data= pbdataWE %>% filter(Year=="17")); summary(W_Nm17)
 
 W_Nm18 = lm(NTm~WORM_N + NTm16, data= pbdataWE %>% filter(Year=="18")); summary(W_Nm18)

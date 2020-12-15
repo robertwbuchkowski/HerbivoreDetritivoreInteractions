@@ -13,6 +13,8 @@ The scripts in this repository replicate the statistical and theoretical analysi
 
 5. The analysis of the complex model from the script run in #4 and its fit to the empirical data is conducted in analysis_complex_model_post-cluster.R
 
-6. The complex model with the subversions "direct model" and "multiple species model" are run in this code. Only one parameter set is run for each model in this code.
+6. The analysis of the complex model from the script run in #4 is in field_simulation_interaction_comparison.R. This analysis produces the data for the comparison with the field simulation and the plot of interaction strength in the best fitting complex model result.
+
+7. The complex model with the subversions "direct model" and "multiple species model" are run in complex_model_direct_model_multiple_model.R code. Only one parameter set is run for each model in this code.
 
 The other files contain functions that prepare raw data for analysis (extract_data_model_analysis.R), analyze climate data (extract_climate_data.R), and provide a convenient plotting function (plotcompare.R).

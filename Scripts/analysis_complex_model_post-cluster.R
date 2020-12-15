@@ -4,7 +4,7 @@
 
 # The main purpose of this analysis is to fit the model data to the empirical data and summarize the model results. Several graphs are produced that are not part of the final paper.
 
-# This produces the fit results presented in Table 1 and Figure 6.
+# This produces the fit results presented in Table 1.
 
 require(tidyverse) # version 1.2.1
 verbose = F # Do you want extra graphs and analyses?
@@ -16,7 +16,7 @@ datatomodel2 = read_csv("Data/datatomodel2.csv")
 
 # Load (Cluster) data -----
 
-if(loadcsv){ # Only important if you are loading in data from the raw outputs of "complex_model_non-eqm_to_cluster.R"
+if(loadcsv){ # Only important if you are loading in data from the raw outputs of "complex_model_non-eqm_to_cluster.R" It would need to be modified for the specific directory on your machine
   
   dirtoload = "Model_noneqm_Jun2020/"
   
@@ -93,7 +93,6 @@ MSD = data3 %>% group_by(Expt) %>%
             N = mad(N))
 
 # calculate mean of each treatment by StateVar by time in the model and mean of each variable
-
 datatomodel3 = datatomodel2 %>% 
   group_by(time, Treatment, StateVar) %>% 
   summarize(mBio = median(Biomass),
@@ -115,7 +114,7 @@ errord = tibble(Run = unique(data3$Run))
 # List of state variables
 SV = c("W", "P", "H", "M", "N")
 
-# Get the individual fit for each state variable in a loop (because the full dataset is too big)
+# Get the individual fit for each state variable in a loop (because the full dataset is too big) and assign it the name errord + state variable letter
 for(i in 1:5){
   assign(paste0("errord", SV[i]), 
          data3[,c("Run","time", "Treatment","Expt",SV[i])] %>%
@@ -150,7 +149,7 @@ errord = errordH %>% rename(H = fit) %>%
 
 rm(errordH, errordM, errordN, errordP, errordW)
 
-# Find the best fit by summing across all state variables: remember this is OK becuase they are standardized above using Msd.
+# Find the best fit by summing across all state variables: remember this is OK becuase they are standardized above using Msd. The quantile of the fit was calculated above as approximately the best fitting (i.e. lowest fit) 0.02%
 errord = errord %>% mutate(fit = H + W + P + N + M) %>%
   select(Run, fit) %>%
   mutate(Best = ifelse(fit < quantile(fit, cut), "Yes", "No"))
@@ -185,6 +184,7 @@ data5 = as_tibble(data5) %>%
 databest2 = databest %>% 
   mutate(RSQ = paste0("italic(R^2)==",round(rsq,2)))
 
+# Create a conversion list to turn state variable letters into full names to create nicer plots
 variable_names <- c(
   "H" = "Herbivore" ,
   "M" = "Microbial",
@@ -200,12 +200,12 @@ variable_names_Expt <- c(
   "2" = "Cage experiment"
 )
 
-# Plot results of selection -----------------------------------------------
+# Plot results of the parameter selection -----------------------------------------------
 
 #create directory for plots if necessary that sets a specific date
 if(!dir.exists(paste0("modelresults_",Sys.Date()))){dir.create(paste0("modelresults_",Sys.Date()))}
 
-# Plot the comparison between model and the empirical data
+# Plot the comparison between model and the empirical data: These plots have model on the x-axis and field data on the y-axis. Much of this code is summarizing and reorganizing the two data sources.
 parplot1 = data5 %>% 
   group_by(Treatment, time, StateVar) %>%
   summarize(
@@ -286,21 +286,24 @@ dev.off()
 parVT = read_rds("Data/PARMS_2020-06-22.rds") %>% left_join(errord) %>% 
   filter(!NPAR %in% c("Kappa","Tref_W", "Tref_P") & !is.na(fit))
 
-# Compare the variance for the best parameters and the rest using the 'var.test' function
-pvec = unique(parVT$NPAR)
-sigvec = rep(-1, length(pvec))
+# Compare the variance for the best parameters and the rest using the 'var.test' function. This analysis is used to determine whether the 50 best fitting parameter sets actually fit better than the remaining ones.
+
+pvec = unique(parVT$NPAR) # vector for each variable
+sigvec = rep(-1, length(pvec)) # vector for significance
 for(i in 1:length(pvec)){
   vec1 = subset(parVT,NPAR == pvec[i] & Best=="No")$PARS
   vec2 = subset(parVT,NPAR == pvec[i] & Best=="Yes")$PARS
-  sigvec[i] = var.test(vec1,vec2, ratio=1, alternative = "greater")$p.value
+  sigvec[i] = var.test(vec1,vec2, ratio=1, alternative = "greater")$p.value # significance tested with var.test function
   
 }
 
 rm(vec1, vec2)
 
+# Create a plot of the results:
 sigframe = data.frame(NPAR = pvec, 
                       pval = ifelse(sigvec < 0.05, "*", ""))
 
+# Nice dataframe for plot
 par_plot = parVT %>% 
   left_join(data.frame(NPAR = names(params),litvalue = unname(params))) %>% # add literature values
   mutate(StdValue = PARS/litvalue) %>% # standardize estimates for easy display
@@ -309,6 +312,7 @@ par_plot = parVT %>%
             upper = quantile(StdValue, 0.945),
             median = quantile(StdValue, 0.5))
 
+# Parameter names
 parameters = c("B", "D", "E[a]",
                "f[i]", "f[o]", 
                "I[N]",
@@ -321,6 +325,7 @@ parameters = c("B", "D", "E[a]",
                "V[LM]^0", "V[LW]", "V[NP]",
                "V[slope]","V[SM]^0", "V[SW]")
 
+# Make the plot
 parameterrange = ggplot(par_plot, aes(x=NPAR, y=median), size=2) + 
   geom_pointrange(aes(ymin=lower, ymax=upper, color=Best, shape=Best, linetype=Best)) + theme_classic() +
   scale_color_manual(values=c("grey", "black")) +
@@ -333,171 +338,3 @@ png(paste0("modelresults_",Sys.Date(),"/","parameter_range_",Sys.Date(),".png"),
     units="in", res=300)
 parameterrange
 dev.off()
-
-rm(par_plot, parVT)
-
-rm(data3)
-
-# Calculate distribution of feedback size ----
-
-# The following analysis produces the complex model data used in the simple_model.R script. It also calculates the interaction effect size relative to the herbivore effect size and detritvore effect size 
-
-data2 <- readRDS("Data/fullmodeloutput_2020-06-22.rds")
-BEST <- read_csv("Data/selected_runs_2020-06-22.csv", 
-                 col_types = cols(Run = col_character()))
-
-# Clean up the data
-data3 = data2 %>% select(-PARS, -YSTABLE, -Run2) %>% filter(time!=-1) %>% rename(TreatmentN = Treatment) %>%
-  left_join(
-    data.frame(TreatmentN = seq(0,7,1),
-               Treatment = c("N", "W", "H", "HW", "RmW", "Rt", "RmH",
-                             "RtH"))
-  ) %>% select(-TreatmentN) %>%
-  filter(Treatment %in% c("N", "W", "H", "HW")) %>% 
-  select(-Expt)
-
-runID = data3 %>% select(-time, -Treatment) %>% gather(-Run, key = StateVar, value = Biomass) %>%
-  mutate(Biomass = ifelse(Biomass < 0, 0,1)) %>%
-  group_by(Run) %>%
-  summarize(Total = sum(Biomass)) %>% 
-  filter(Total == 560) %>% select(Run) %>%
-  filter(Run != "9481143743947965") # Get rid of problem Run!
-
-# Calcaulte the effects
-out0 = runID %>%
-  left_join(
-    data3
-  ) %>%
-  left_join(
-    BEST %>% select(Run, Best)
-  ) %>%
-  filter(Best == "Yes") %>%
-  gather(-time, -Treatment, -Run, - Best, key = StateVar, value = Biomass) %>%
-  spread(key = Treatment, value = Biomass) %>% 
-  mutate(IE = (HW - H - W + N)/N) %>%
-  mutate(WE = (W - N)/N, HE = (H - N)/N) %>% 
-  select(time, Run, StateVar, IE, WE, HE) %>% 
-  filter(!(StateVar %in% c("W", "H"))) 
-
-# A function for displaying scientific notation
-scientific <- function(x){
-  ifelse(x==0, "0", parse(text=gsub("[+]", "", gsub("e", " %*% 10^", scales::scientific_format()(x)))))
-}
-
-# Plot the interaction effect for selected variables
-png(paste0("modelresults_",Sys.Date(),"/interactioneffect_simple.png"), width = 5, height = 5, units = "in", res = 600)
-
-gt = out0 %>% gather(-time, -Run, -StateVar, key = Effect, value = value) %>%
-  filter(time == 1395) %>%
-  mutate(value = 100*abs(value) + 1e-6) %>% group_by(Effect) %>% summarise(X = median(value)) %>%
-  mutate(Y = c(0.5, 0.40, 0.45)) %>%
-  mutate(t = signif(X, 2))
-
-out0 %>% gather(-time, -Run, -StateVar, key = Effect, value = value) %>%
-  filter(time == 1395) %>%
-  mutate(value = 100*abs(value) + 1e-6) %>%
-  ggplot(aes(x = value)) +
-  geom_text(aes(x = X, y = Y, label = t, col = Effect),data = gt) + 
-  geom_density(aes(fill = Effect),alpha = 0.7) + theme_classic() + 
-  scale_x_log10(name = "Effect (proportion of control)", labels = scientific) + 
-  scale_fill_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Herbivore", "Detritivore", "Interaction"), name = "Effect") +
-  scale_color_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Herbivore", "Detritivore", "Interaction"), name = "Effect") +
-  theme(legend.position = c(0.25, 0.75),
-        legend.justification = c(1, 0),
-        legend.box = "horizontal") + ylab("Density")
-dev.off()
-
-rm(out0)
-
-# Prepare the data for comparison with the simple model
-(MAXTIME = max(data3$time))
-
-out1 = runID %>%
-  left_join(
-    data3 %>% select(-H, -W) %>% filter(time == MAXTIME) %>% select(-time) 
-  ) %>%
-  gather(-Treatment, -Run, key = StateVar, value = Biomass) %>%
-  spread(key = Treatment, value = Biomass) %>% 
-  mutate(IE = (HW - H - W + N)) %>%
-  mutate(WE = (W - N), HE = (H - N)) %>% 
-  mutate(IEpred = WE + HE, IEacc = HW - N) %>%
-  select(Run, StateVar, IE, WE, HE, IEacc, IEpred) %>%
-  left_join(BEST) %>%
-  select(-fit) %>%
-  mutate(Best = ifelse(is.na(Best),"No", Best))
-
-  # 5,348,160
-  
-out2 = out1 %>%
-  left_join(
-    data.frame(StateVar = c("P", "L", "N", "S", "M"),
-               ncol = as.character(c("#009E73","#E69F00","#56B4E9","#F0E442", "#0072B2")),
-               npch = c(1,2,3,4,5))
-  ) %>%
-  left_join(
-    data.frame(Best = c("Yes", "No"),
-               ncex = c(1, 0.5))
-  )
-
-out3 = out2[1:(5*10000),] # Take the first 10,000 model runs to compare with the simple model
-
-out4 = out2 %>% filter(Best == "Yes")
-
-out3 = out3 %>% bind_rows(out4) %>% distinct()
-
-# This is the data that is used in the simple_model.R script to plot the comparison
-write_rds(out3, "Data/TrueLinearComplex.rds")
-
-out3 %>% select(Run) %>% 
-  left_join(
-    data3 %>% filter(time == MAXTIME)
-  ) %>% 
-  select(-time) %>%
-  write_rds("Data/TrueLinearComplex_StateVar.rds")
-
-rm(data3)
-
-variable_names <- c(
-  "H" = "Grasshopper" ,
-  "M" = "Microbial biomass",
-  "N" = "Inorganic N",
-  "P" = "Plant biomass",
-  "W" = "Earthworm",
-  "L" = "Litter",
-  "S" = "Soil organic matter"
-)
-
-# Plot the full interaction effects available the grasshopper and earthworm effects
-
-# Plot for the best fitting parameter sets only: Figure 6 in the main text
-png(paste0("modelresults_",Sys.Date(),"/interactioneffect.png"), width = 8, height = 5, units = "in", res = 600)
-out1 %>% filter(Best == "Yes") %>% select(-Best, -IEacc, -IEpred) %>% gather(-Run, -StateVar, key = Effect, value = value) %>%
-  mutate(value = 100*abs(value) + 1e-6) %>%
-  ggplot(aes(x = value, fill = Effect)) + geom_density(alpha = 0.7) + theme_classic() + 
-  facet_wrap(.~StateVar,labeller=labeller(StateVar = variable_names)) +
-  scale_x_log10(name = "Effect", labels = scientific) + 
-  scale_fill_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Grasshopper", "Earthworm", "Interaction"), name = "Effect") +
-  theme(legend.position = c(1, 0),
-        legend.justification = c(1, 0),
-        legend.box = "horizontal")
-dev.off()
-
-# Plot for all parameter sets
-effectplot2 = out1 %>% select(-Best, -IEacc, -IEpred) %>% gather(-Run, -StateVar, key = Effect, value = value) %>%
-  mutate(value = 100*abs(value) + 1e-6) %>%
-  ggplot(aes(x = value, fill = Effect)) + geom_density(alpha = 0.7) + theme_classic() + facet_wrap(.~StateVar, scale = "free",labeller=labeller(StateVar = variable_names)) + scale_x_log10(name = "Effect") + scale_fill_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Grasshopper", "Earthworm", "Interaction"), name = "Effect (%)")
-
-png(paste0("modelresults_",Sys.Date(),"/interactioneffect2.png"), width = 8, height = 5, units = "in", res = 600)
-effectplot2
-dev.off()
-  
-# Test whether interaction effect is always smaller than the individual effects of herbivores and detritivores at the end of the simulation
-test1 = out1 %>% filter(Best == "Yes") %>% mutate(IW = -abs(IE) + abs(WE), IH = -abs(IE) + abs(HE)) %>%
-  mutate(IW = IW > 0, IH = IH >0)
-
-table(test1$IW,test1$IH)
-
-test1 = out1 %>% mutate(IW = -abs(IE) + abs(WE), IH = -abs(IE) + abs(HE)) %>% filter(abs(HE) + abs(WE) != 0) %>%
-  mutate(IW = IW > 0, IH = IH >0)
-
-table(test1$IW,test1$IH)
