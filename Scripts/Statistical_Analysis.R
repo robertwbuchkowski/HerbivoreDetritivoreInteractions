@@ -40,13 +40,10 @@ summary(multcomp::glht(m1, linfct = multcomp::mcp(Season="Tukey")))
 # SUMMARY: LUM not well manipulated by treatments, but AP was well manipulated. LUM actually higher in removal treatments, which is consistent with their ecological role as a primary colonizer to worm-free areas. Soil temperautre, season, and treatment determine the number of worms removed. Can use SoilTavg as a covariate to models considering the full worm numbers
 
 # Plot the earthworm data
-jpeg(paste0("Stats_plots_from_",Sys.Date(),"/Worm_QCQA_Expt_",Sys.Date(), ".jpeg"), units="in", width=7, height=7, res=600)
 wormdata2 %>% ggplot(aes(x=SeasonYear, y=WORM_N, color=Addition)) + geom_boxplot() + geom_jitter() + theme_classic() + scale_color_discrete(labels = c("Add", "Control", "Remove")) + scale_x_discrete(limits=c("Spring16", "Fall16","Spring17", "Fall17","Spring18", "Fall18"), labels = c("Spring '16", "Fall '16","Spring '17", "Fall '17","Spring '18", "Fall '18")) + ylab("Earthworms (#)") + xlab("Season and Year")
-dev.off()
 
-jpeg(paste0("Stats_plots_from_",Sys.Date(),"/Worm_covar_",Sys.Date(), ".jpeg"), units="in", width=7, height=7, res=600)
 wormdata2 %>% select(WORM_N, AP_N, LUM_N, SoilTavg,VWCavg,CloudCover, Air_Temp) %>% gather(-WORM_N, -AP_N, -LUM_N, key=abiotic_key, value=abiotic) %>% gather(-abiotic_key, -abiotic, key=wormtype, value=Number) %>% filter(!is.na(abiotic)) %>% ggplot(aes(x=abiotic, y=Number)) + geom_point() + facet_wrap(abiotic_key~wormtype, scales="free_x") + theme_classic()
-dev.off()
+
 
 # ... 1.0.2 Correct worm data for variable extraction efficiency ----
 
@@ -64,7 +61,7 @@ ch4_correctAP0 <- lm(AP_N ~ VWCavg + SoilTavg + CloudCover + Air_Temp, data= wor
 ch4_correctAP <- lm(log(AP_N+0.1) ~ SoilTavg, data= wormdata3); summary(ch4_correctAP) # least significant CloudCover and Air_Temp
 
 # Create table for supplemental material
-sjPlot::tab_model(ch4_correctworm0,ch4_correctworm, collapse.ci = T,pred.labels = c("Intercept", "Volumetric Water Content", "Soil Temperature","Cloud Cover (%)","Air Temperature"), dv.labels = c("Worm (#; all variables)", "Worm (#; selected variables)"),p.style="a")
+sjPlot::tab_model(ch4_correctworm0,ch4_correctworm, collapse.ci = T,pred.labels = c("Intercept", "Volumetric Water Content", "Soil Temperature","Cloud Cover (%)","Air Temperature"), dv.labels = c("Worm (#; all variables)", "Worm (#; selected variables)"),p.style="stars")
 
 # Replace the earthworm data for the earthworm abundance from the model with extraction conditions
 wormdata3 = wormdata3 %>% 
@@ -84,9 +81,7 @@ RDAdata = RDAdata %>% rename(Earthworm_old = Earthworm, AP_N_old = AP_N) %>%
   rename(Earthworm = WORM_N) %>%
   mutate(Year = as.factor(Year))
 
-jpeg(paste0("Stats_plots_from_",Sys.Date(),"/wormStandardization_",Sys.Date(), ".jpeg"), units="in", width=7, height=6, res=600)
 pbdata %>% ggplot(aes(x = WORM_N_old, y = WORM_N, shape=Year, color = Addition)) + geom_point(size = 2) + theme_classic() + xlab("Earthworm (#)") + ylab("Earthworm (residuals)") + scale_color_manual(name = "Earthworm Treatment", values = c("#E69F00", "#56B4E9", "#009E73")) + scale_shape_discrete(labels= c("2017", "2018"))
-dev.off()
 
 # .... Export pbdata to RDS file for using in other code sections
 write_rds(pbdata, "Data/pbdata.rds")
@@ -120,11 +115,11 @@ linearmodels<- function(inputdata, inter = T){
   if(inter){
     sjPlot::tab_model(PBinter,SIRinter, NTsinter, NTminter, collapse.ci = T, 
                       pred.labels = c("Intercept", "Earthworm (#)", "Grasshopper (#)","Year [2018]","Baseline '16 (of dependent variable)", "Earthworm × Grasshopper"),
-                      dv.labels = c("Plant Biomass", "Substrate Induced Respiration","Field N mineralization (log)", "Lab N mineralization"), p.style="a")
+                      dv.labels = c("Plant Biomass", "Substrate Induced Respiration","Field N mineralization (log)", "Lab N mineralization"), p.style="stars")
   }else{
     sjPlot::tab_model(PBfinal,SIRfinal, NTsfinal, NTmfinal, collapse.ci = T, 
                       pred.labels = c("Intercept", "Earthworm (#)", "Grasshopper (#)","Year [2018]","Baseline '16 (of dependent variable)"),
-                      dv.labels = c("Plant Biomass", "Substrate Induced Respiration","Field N mineralization (log)", "Lab N mineralization"), p.style="a")
+                      dv.labels = c("Plant Biomass", "Substrate Induced Respiration","Field N mineralization (log)", "Lab N mineralization"), p.style="stars")
   }
 
 }
@@ -183,11 +178,11 @@ YearSeparateModels<- function(inputdata, inter = T){
   if(inter){
     sjPlot::tab_model(PBinter,SIRinter, NTsinter, NTminter, collapse.ci = T, 
                       pred.labels = c("Intercept", "Earthworm (#)", "Grasshopper (#)", "Baseline '16 (of dependent variable)","Earthworm × Grasshopper"),
-                      dv.labels = c("Plant Biomass", "Substrate Induced Respiration","Field N mineralization (log)", "Lab N mineralization"), p.style="a")
+                      dv.labels = c("Plant Biomass", "Substrate Induced Respiration","Field N mineralization (log)", "Lab N mineralization"), p.style="stars")
   }else{
     sjPlot::tab_model(PBfinal,SIRfinal, NTsfinal, NTmfinal, collapse.ci = T, 
                       pred.labels = c("Intercept", "Earthworm (#)", "Grasshopper (#)", "Baseline '16 (of dependent variable)","Earthworm × Grasshopper"),
-                      dv.labels = c("Plant Biomass", "Substrate Induced Respiration","Field N mineralization (log)", "Lab N mineralization"), p.style="a")
+                      dv.labels = c("Plant Biomass", "Substrate Induced Respiration","Field N mineralization (log)", "Lab N mineralization"), p.style="stars")
   }
 }
 
@@ -202,7 +197,6 @@ YearSeparateModels(pbdata %>% filter(Year == "18"))
 # This plot is found in the Appendix S1: Figure S9
 pbdata = pbdata %>% mutate(Year = as.factor(Year))
 
-jpeg(paste0("Stats_plots_from_",Sys.Date(),"/Figure3_",Sys.Date(), ".jpeg"), units="in", width=6, height=8, res=600)
 
 par(mfrow=c(4,2), omi=c(0.5,0,0,0), mar=c(2,4.5,2,1))
 # ---- Panel A ----- #
@@ -280,7 +274,6 @@ legend("topright", legend = c("Year ***"), bty = "n")
 
 mtext(text="Earthworm (residuals)", side=1, outer=T, adj=0.25, line=1)
 mtext(text="Grasshopper (#)", side=1, outer=T, adj=0.85, line=1)
-dev.off()
 
 pbdata = pbdata %>% select(-Base16)
 
@@ -314,7 +307,6 @@ ann_text <- data.frame(Year = c(0.75, 0.75, 0.75, 2.1, 2.1), Measure = c(0.6,1.5
                        BiomassCtrl= rep("No", 5))
 
 # This is Figure 3
-jpeg(paste0("Stats_plots_from_",Sys.Date(),"/BiomassCtrl_Year_",Sys.Date(), ".jpeg"), units="in", width=7, height=7, res=600)
 ggplot(bmdata2, aes(x=Year, y=Measure, color=BiomassCtrl)) + 
   geom_boxplot(outlier.shape = NA) + 
   geom_jitter() + 
@@ -322,8 +314,7 @@ ggplot(bmdata2, aes(x=Year, y=Measure, color=BiomassCtrl)) +
   facet_wrap("Key", scale="free_y", labeller = labeller(Key=key_label)) + 
   geom_text(data = ann_text,label = c("Year*", "Year***", "Year*", "Year***", "Biomass Ctrl*"), color="black") +
   scale_color_discrete(name = "Biomass Control")
-dev.off()
-  
+
 # .. 1.2 Plant Community Composition Analysis: RDA -------------------------------
 
 # Scale the data with a hellinger transformation
@@ -355,7 +346,6 @@ anova.cca(rda1, by="margin", step=1000)
 (prop_explained = round(rda1$CCA$eig/rda1$tot.chi*100,1))
 
 # Plot the RDA: Figure 4 in the main text
-jpeg(paste0("Stats_plots_from_",Sys.Date(),"/RDA_Expt_",Sys.Date(), ".jpeg"), units="in", width=7, height=7, res=600)
 plot(rda1, type="n", xlab=paste0("RDA1 (", prop_explained[1],"%)"), ylab=paste0("RDA2 (", prop_explained[2],"%)"))
 points(rda1, display= "sites", choices=c(1,2), scaling=2, cex=0.5, col="grey",pch=ifelse(RDAdata$Year=="17", 19, 17))
 ordiellipse(rda1, groups=RDAdata$Year,col= alpha(c("black", "grey40"), 0.7), lwd=3, label=F)
@@ -382,8 +372,6 @@ par(fig=c(0.47,0.94,0.6,0.882)) # fig shrinks and places relative to figure regi
 plot(0,0, pch=3,type="p", col="grey", xlab="", ylab="", xlim=c(-0.11, 0.09), ylim=c(-0.03, 0.07),xaxt='n',yaxt='n')
 abline(h=0, lty = 3); abline(v=0, lty=3)
 text(rda1, display= "sp", choices=c(1,2), scaling=2, cex=0.45, col="red")
-dev.off()
-
 
 # .... 1.2.1 Cover and worm analysis of the data-----
 
@@ -606,10 +594,8 @@ fplot[,c("Response","Predictor", "EstimateScale")]
 # The only treatments are worm removal and addition
 
 # .... 2.0.1 Explore WE worm data ----
-jpeg(paste0("Stats_plots_from_",Sys.Date(),"/Worm_QCQA_WE_",Sys.Date(), ".jpeg"), units="in", width=7, height=7, res=600)
 ggplot(wormWE,aes(x=SeasonYear, y=WORM_N,color=Treatment)) + geom_boxplot() + theme_classic() + geom_jitter(height = 0) + scale_x_discrete(limits=c("Fall16","Spring17", "Fall17","Spring18", "Fall18"), labels = c("Fall '16","Spring '17", "Fall '17","Spring '18", "Fall '18")) + ylab("Earthworm (#)") + xlab("Season and Year") 
 # Fall 2018 is the lowest year, significant relative to other falls, but not the spring numbers.
-dev.off()
 
 ggplot(wormWE,aes(x=SeasonYear, y=AP_N,color=Treatment)) + geom_boxplot() + theme_classic() + geom_jitter(height = 0) + scale_x_discrete(limits=c("Fall16","Spring17", "Fall17","Spring18", "Fall18"), labels = c("Fall '16","Spring '17", "Fall '17","Spring '18", "Fall '18")) + ylab("Earthworm (#)") + xlab("Season and Year") 
 
@@ -701,11 +687,9 @@ anova.cca(rda2, by="margin", step=1000)
 
 (prop_explained = round(rda2$CCA$eig/rda2$tot.chi*100,1))
 
-jpeg(paste0("Stats_plots_from_",Sys.Date(),"/RDA_WE_",Sys.Date(), ".jpeg"), units="in", width=7, height=7, res=600)
 plot(rda2, type="n", xlab=paste0("RDA1 (", prop_explained[1],"%; ns)"), ylab=paste0("RDA2 (", prop_explained[2],"%; ns)"))
 points(rda2, display= "sites", choices=c(1,2), scaling=2, pch=ifelse(RDAWdata$Year=="17", 19, 17),col=ifelse(RDAWdata$Treatment=="Remove", "black", "grey"))
 text(rda2, display="bp", choices=c(1,2), scaling=2, col=c("blue","orange"), select=c(T,F, T,F))
 text(rda2, display= "sp", choices=c(1,2), scaling=2, cex=0.5, col="red")
 legend("topright", legend=bquote(italic(R)^2 == .(format(R2, digits = 3))), bty="n")
 legend("bottomright", legend=c("`17", "`18", "Control", "Remove"), col=c("grey30", "grey30", "grey", "black"), bty="n", pch=c(19,17, 15,15))
-dev.off()

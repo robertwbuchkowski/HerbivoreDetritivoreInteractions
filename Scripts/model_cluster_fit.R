@@ -69,7 +69,7 @@ PARMS = data2 %>% select(PARS, Run) %>%
                     length(unique(data2$Run)))) %>%
   filter(NPAR != "REMOVE")
 
-saveRDS(PARMS, file = paste0("Data/PARMS_",Sys.Date(),".rds"))
+saveRDS(PARMS, file = paste0("Data/PARMS_2020-06-22.rds"))
 
 # Clean out memory
 rm(data2, PARMS)
@@ -81,7 +81,6 @@ gc()
 # based on van der Vaart et al. 2015
 
 # The full dataset is too big to run, so I need to do it in parts. I will work with it by state variable
-write_rds(data3)
 
 MSD = data3 %>% group_by(Expt) %>%
   summarise(W = mad(W),
