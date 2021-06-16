@@ -12,9 +12,6 @@ verbose = F
 # Run the extract_data_model_analysis.R script to clean up the raw data and generate a data set that can be used to compare the model and data
 source("Scripts/extract_data_model_analysis.R")
 
-# Create directory to save the plots
-if(!dir.exists(paste0("Stats_plots_from_",Sys.Date()))){dir.create(paste0("Stats_plots_from_",Sys.Date()))}
-
 # 1.0 Experiment Analysis ----
 # .... 1.0.1 Explore CH4 worm data ----
 
@@ -372,32 +369,6 @@ par(fig=c(0.47,0.94,0.6,0.882)) # fig shrinks and places relative to figure regi
 plot(0,0, pch=3,type="p", col="grey", xlab="", ylab="", xlim=c(-0.11, 0.09), ylim=c(-0.03, 0.07),xaxt='n',yaxt='n')
 abline(h=0, lty = 3); abline(v=0, lty=3)
 text(rda1, display= "sp", choices=c(1,2), scaling=2, cex=0.45, col="red")
-
-# .... 1.2.1 Cover and worm analysis of the data-----
-
-# This analysis of earthworms and specific plant cover is not included in the manuscript, but the code is here for those interested in running it.
-coverworm = percentcover %>% separate(SeasonYear, into=c("Season", "Year"), sep=-2) %>% select(-Date, -ExperimentStart, - DOE, -Season) %>% gather(-Plot, -Year, -DOY, key=Plant, value=Cover) %>% 
-  left_join(read_csv("Data/plant_groups_ch4.csv")) %>% # can add this information
-  filter(DOY!=150) %>% # remove second spring survey so 2017 and 2018 have the same # of surveys
-  filter(!is.na(Cover)) %>% group_by(Plot, Year,Plant, Fcn_grp) %>% 
-  summarise(Cover = mean(Cover)) %>% ungroup() %>% group_by(Plot, Year, Fcn_grp) %>% 
-  summarise(Cover=sum(Cover)) %>% ungroup() %>% 
-  filter(Fcn_grp %in% c("legume", "forb", "grass")) %>% 
-  left_join(wormdata2 %>% filter(Season=="Spring") %>% 
-              select(Plot, Year, Addition, WORM_N))
-
-coverworm %>% ggplot(aes(x=WORM_N, y=Cover, color=Year)) + geom_point() + theme_classic() + facet_grid(Fcn_grp~.) + stat_smooth(method="lm")
-
-summary(lm(Cover~WORM_N+Year, data=coverworm %>% filter(Fcn_grp =="legume")))
-summary(lm(Cover~WORM_N+Year, data=coverworm %>% filter(Fcn_grp =="grass")))
-summary(lm(Cover~WORM_N+Year, data=coverworm %>% filter(Fcn_grp =="forb")))
-
-summary(lm(Cover~Addition+Year, data=coverworm %>% filter(Fcn_grp =="legume")))
-summary(lm(Cover~Addition+Year, data=coverworm %>% filter(Fcn_grp =="grass")))
-summary(lm(Cover~Addition+Year, data=coverworm %>% filter(Fcn_grp =="forb")))
-
-# worm treatment or number don't explain changes in plant cover...largest effect is time with forbs replacing clover.
-rm(coverworm)
 
 # .. 1.3 Run Path Analysis (Structural equation models [SEM]) ----
 
