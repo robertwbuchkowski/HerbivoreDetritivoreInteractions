@@ -2,7 +2,7 @@
 
 require(tidyverse) # version 1.2.1
 
-# The following analysis produces the complex model data used in the simple_model.R script. It also calculates the interaction effect size relative to the herbivore effect size and detritvore effect size used in Figure 6.
+# The following analysis calculates the interaction effect size relative to the herbivore effect size and detritvore effect size used in Figure 6.
 
 #create directory for plots if necessary that sets a specific date
 if(!dir.exists(paste0("modelresults_",Sys.Date()))){dir.create(paste0("modelresults_",Sys.Date()))}
@@ -75,79 +75,32 @@ out1 = runID %>%
   select(-fit) %>%
   mutate(Best = ifelse(is.na(Best),"No", Best))
 
-out2 = out1 %>%
-  left_join(
-    data.frame(StateVar = c("P", "L", "N", "S", "M"),
-               ncol = as.character(c("#009E73","#E69F00","#56B4E9","#F0E442", "#0072B2")),
-               npch = c(1,2,3,4,5))
-  ) %>%
-  left_join(
-    data.frame(Best = c("Yes", "No"),
-               ncex = c(1, 0.5))
-  )
-
-out3 = out2[1:(5*10000),] # Take the first 10,000 model runs to compare with the simple model
-
-# This is the data that is used in the simple_model.R script to plot the comparison
-write_rds(out3, "Data/TrueLinearComplex.rds")
-
-# Go back and get the state variable sizes for the selected 10,000 model runs (line 89)
-out3 %>% select(Run) %>% 
-  left_join(
-    data3 %>% 
-      filter(time == MAXTIME)
-  ) %>% 
-  select(-time) %>%
-  write_rds("Data/TrueLinearComplex_StateVar.rds")
-
-rm(data3)
-gc()
-
-# Plot the full interaction effects available the grasshopper and earthworm effects
-
 # Plot for the best fitting parameter sets only
 png(paste0("modelresults_",Sys.Date(),"/interactioneffect.png"), width = 8, height = 5, units = "in", res = 600)
 out1 %>% filter(Best == "Yes") %>% select(-Best, -IEacc, -IEpred) %>% gather(-Run, -StateVar, key = Effect, value = value) %>%
   mutate(value = 100*abs(value) + 1e-6) %>%
-  ggplot(aes(x = value, fill = Effect)) + geom_density(alpha = 0.7) + theme_classic() + 
+  ggplot(aes(x = Effect, y = value, fill = Effect)) + geom_boxplot(alpha = 0.7) + theme_classic() + 
   facet_wrap(.~StateVar,labeller=labeller(StateVar = variable_names)) +
-  scale_x_log10(name = "Effect", labels = scientific) + 
-  scale_fill_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Grasshopper", "Earthworm", "Interaction"), name = "Effect") +
+  scale_y_log10(name = "Effect magnitude", labels = scientific) + 
+  scale_x_discrete(limits = c("HE", "WE", "IE")) + 
+  scale_fill_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Grasshopper (HE)", "Earthworm (WE)", "Interaction (IE)"), name = "Effect") +
   theme(legend.position = c(1, 0),
         legend.justification = c(1, 0),
         legend.box = "horizontal")
 dev.off()
 
-# Build a data frame for the plant plot: Figure 6
-plantplot = out1 %>% 
-  filter(Best == "Yes") %>%
-  select(-Best, -IEacc, -IEpred) %>%
-  gather(-Run, -StateVar, key = Effect, value = value) %>%
-  mutate(value = abs(value) + 1e-6) %>%
-  filter(StateVar == "P")
-
-# Plot the interaction effect for on plants
-png(paste0("modelresults_",Sys.Date(),"/interactioneffect_Figure6.png"), width = 5, height = 5, units = "in", res = 600)
-gt =  plantplot %>%
-  group_by(Effect) %>%
-  summarise(X = median(value)) %>%
-  mutate(Y = c(0.65, 0.65, 0.65)) %>%
-  mutate(t = signif(X, 2)) %>%
-  mutate(X = X*c(0.1, 1,1)) %>%
-  mutate(t = scientific3(t))
-
-plantplot %>%
-  ggplot(aes(x = value)) +
-  geom_text(aes(x = X, y = Y, label = t, col = Effect),data = gt, parse = T) + 
-  geom_density(aes(fill = Effect),alpha = 0.7) + theme_classic() + 
-  scale_x_log10(name = "Interaction effect onto plants", labels = scientific) +
-  scale_fill_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Herbivore", "Detritivore", "Interaction"), name = "Effect") +
-  scale_color_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Herbivore", "Detritivore", "Interaction"), name = "Effect") +
-  theme(legend.position = c(0.25, 0.75),
+png(paste0("modelresults_",Sys.Date(),"/interactioneffect_all.png"), width = 8, height = 5, units = "in", res = 600)
+out1 %>% select(-Best, -IEacc, -IEpred) %>% gather(-Run, -StateVar, key = Effect, value = value) %>%
+  mutate(value = 100*abs(value) + 1e-6) %>%
+  ggplot(aes(x = Effect, y = value, fill = Effect)) + geom_boxplot(alpha = 0.7) + theme_classic() + 
+  facet_wrap(.~StateVar,labeller=labeller(StateVar = variable_names)) +
+  scale_y_log10(name = "Effect magnitude", labels = scientific) + 
+  scale_x_discrete(limits = c("HE", "WE", "IE")) + 
+  scale_fill_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Grasshopper (HE)", "Earthworm (WE)", "Interaction (IE)"), name = "Effect") +
+  theme(legend.position = c(1, 0),
         legend.justification = c(1, 0),
-        legend.box = "horizontal") + ylab("Density")
+        legend.box = "horizontal")
 dev.off()
-
 
 # Test whether interaction effect is always smaller than the individual effects of herbivores and detritivores at the end of the simulation
 test1 = out1 %>% filter(Best == "Yes") %>% mutate(IW = -abs(IE) + abs(WE), IH = -abs(IE) + abs(HE)) %>%
