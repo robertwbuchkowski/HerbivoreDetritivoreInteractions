@@ -1,6 +1,4 @@
-# Model for cluster: Version 4.0
-# Robert W. Buchkowski
-# April 2020
+# Model for the cluster
 
 require(deSolve) # version 1.21
 

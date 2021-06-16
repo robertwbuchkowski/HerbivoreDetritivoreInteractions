@@ -1,4 +1,4 @@
-# Data Analysis and Exploration
+# Statistical Analysis
 
 library(vegan) # version 2.5-6
 library(nlme) # version 3.1-137

@@ -1,9 +1,6 @@
-# More complex model simulations:
-# Author: Robert W. Buchkowski
-# Date created: Dec. 2020
-# Date modified: June 1/2021
+# Model simulations
 
-# This script compares the single model with and without reverse MM dynamics for the microbial pool. 
+# This script compares the single model with and without reverse MM dynamics for the microbial pool and runs the long-term model simulations.
 
 require(FME) # version 1.3.5
 require(lubridate) # version 1.7.4
@@ -348,7 +345,7 @@ initialrun %>% as.data.frame() %>% as_tibble() %>%
 
 yint3 = initialrun[365*(yts-1),-1]
 
-# .. 2.0.1 Simulations -------------------------------------------------
+# .. 2.1 Simulations -------------------------------------------------
 
 output2_WE_Return = ode(y=yint3,times = 1:tmax2, func=singlemodel_fwdMM, parms=params)
 
@@ -445,9 +442,7 @@ if(F){
 forwardMMoutput = output
 rm(output)
 
-# 3.0 Compare the reverse and forward versions of the model -----
-
-
+# .. 2.2 Compare the reverse and forward versions of the model -----
 
 as_tibble(singleoutput) %>%
   filter(Treatment %in% c("N", "H", "W","HW") & time %in% seq(180, 38065, by = 365)) %>%

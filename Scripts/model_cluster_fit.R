@@ -1,6 +1,4 @@
-# Analysis of Complex model data from the cluster
-# Robert W. Buchkowski
-# June 23 2020
+# Analysis of model simulation data from the cluster
 
 # The main purpose of this analysis is to fit the model data to the empirical data and summarize the model results. Several graphs are produced that are not part of the final paper.
 

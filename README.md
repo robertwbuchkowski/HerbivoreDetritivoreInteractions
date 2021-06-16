@@ -5,16 +5,12 @@ The scripts in this repository replicate the statistical and theoretical analysi
 
 1. The statistical models are all run in the script Statistical_Analysis.R. Section 1 is the analysis of the experiment. Section 2 is the analysis of the 1-m^2 plots that are reported in the appendicies.
 
-2. The simple model and the comparison with the complex model using model results created elsewhere are run in simple_model.R
+2. The model is simulated based on empirical treatments so it can be compared to the data using the script model_simulations_cluster.R
 
-3. The complex model is run to equilibrium for versions with and without herbivores and detritivores in the script complex_model_eqm_to_cluster.R
+3. The analysis of the model from the script run in #2 and its fit to the empirical data is conducted in model_cluster_fit.R
 
-4. The complex model is simulated based on empirical treatments so it can be compared to the data using the script complex_model_non-eqm_to_cluster.R
+4. The analysis of the model from the script run in #3 is in field_simulation_interaction_comparison.R. This analysis produces the data for the comparison with the field simulation and the plot of interaction strength in the best fitting model result.
 
-5. The analysis of the complex model from the script run in #4 and its fit to the empirical data is conducted in analysis_complex_model_post-cluster.R
-
-6. The analysis of the complex model from the script run in #4 is in field_simulation_interaction_comparison.R. This analysis produces the data for the comparison with the field simulation and the plot of interaction strength in the best fitting complex model result.
-
-7. The complex model with the subversions "direct model" and "multiple species model" are run in complex_model_direct_model_multiple_model.R code. Only one parameter set is run for each model in this code.
+5. The script model_simulations.R has the comparison between reverse and forward MM models and the long-term model simulations.
 
 The other files contain functions that prepare raw data for analysis (extract_data_model_analysis.R), analyze climate data (extract_climate_data.R), and provide a convenient plotting function (plotcompare.R).
