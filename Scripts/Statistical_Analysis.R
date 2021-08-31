@@ -95,7 +95,7 @@ pbdata_temp = tibble(
   ) %>%
   mutate(Year = ifelse(Year == "17", "2017", "2018"))
 
-jpeg(paste0("Stats_plots_from_",Sys.Date(),"/Figure2_",Sys.Date(), ".jpeg"), units="in", width=9, height=6, res=600)
+jpeg(paste0("Figure2_",Sys.Date(), ".jpeg"), units="in", width=9, height=6, res=600)
 ggpubr::ggarrange(
   pbdata_temp %>%
     ggplot(aes(x = Treatment, y = PlantBiomass, color = Year)) + geom_boxplot()  + theme_classic() + ylab("Aboveground plant biomass") + theme(legend.position = "none"),
@@ -593,6 +593,12 @@ fplot[,c("Response","Predictor", "EstimateScale")]
 # The only treatments are worm removal and addition
 
 # .... 2.0.1 Explore WE worm data ----
+
+wormWE %>%
+  filter(SeasonYear == "Fall16") %>%
+  summarise(mean(WORM_N, na.rm = T),
+            sd(WORM_N, na.rm = T))
+
 ggplot(wormWE,aes(x=SeasonYear, y=WORM_N,color=Treatment)) + geom_boxplot() + theme_classic() + geom_jitter(height = 0) + scale_x_discrete(limits=c("Fall16","Spring17", "Fall17","Spring18", "Fall18"), labels = c("Fall '16","Spring '17", "Fall '17","Spring '18", "Fall '18")) + ylab("Earthworm (#)") + xlab("Season and Year") 
 # Fall 2018 is the lowest year, significant relative to other falls, but not the spring numbers.
 
