@@ -91,6 +91,34 @@ dev.off()
 # .... Export pbdata to RDS file for using in other code sections
 write_rds(pbdata, "Data/pbdata.rds")
 
+# ... 1.0.3 Plot the outputs by treatment ----
+
+pbdata_temp = tibble(
+  Treatment = factor(c("Control", "Grasshopper", "Earthworm", "G & H", "Biomass Ctrl","Biomass Ctrl","Biomass Ctrl"), levels = c("Control", "Biomass Ctrl", "Grasshopper", "Earthworm", "G & H")),
+  HopperAdd = c("Remove", "Add", "Remove", "Add", "Frozen", "Remove", "Frozen"),
+  Addition = as.factor(c("Remove", "Remove", "Add", "Add", "Frozen", "Frozen", "Remove"))
+) %>%
+  right_join(
+    pbdata, by = c("HopperAdd", "Addition")
+  ) %>%
+  mutate(Year = ifelse(Year == "17", "2017", "2018"))
+
+jpeg(paste0("Stats_plots_from_",Sys.Date(),"/Figure2_",Sys.Date(), ".jpeg"), units="in", width=9, height=6, res=600)
+ggpubr::ggarrange(
+  pbdata_temp %>%
+    ggplot(aes(x = Treatment, y = PlantBiomass, color = Year)) + geom_boxplot()  + theme_classic() + ylab("Aboveground plant biomass") + theme(legend.position = "none"),
+  
+  pbdata_temp %>%
+    ggplot(aes(x = Treatment, y = NTs, color = Year)) + geom_boxplot() + theme_classic() + ylab("Field N mineralization") + theme(legend.position = c(0.1, 0.8)),
+  
+  pbdata_temp %>%
+    ggplot(aes(x = Treatment, y = NTm, color = Year)) + geom_boxplot() + theme_classic() + ylab("Lab N mineralization") + theme(legend.position = "none"),
+  
+  pbdata_temp %>%
+    ggplot(aes(x = Treatment, y = SIR, color = Year)) + geom_boxplot() + theme_classic() + theme(legend.position = "none")
+)
+dev.off()
+
 # .. 1.1 Linear models --------------------
 
 # A function that runs the different linear models with and without interactions
