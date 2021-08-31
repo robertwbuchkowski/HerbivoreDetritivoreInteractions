@@ -33,6 +33,32 @@ data2 <- readRDS("Data/fullmodeloutput_2020-06-22.rds")
 BEST <- read_csv("Data/selected_runs_2020-06-22.csv", 
                  col_types = cols(Run = col_character()))
 
+# Load the field data 
+datatomodel2 = read_csv("Data/datatomodel2.csv") %>%
+  # Keep only the experimental data
+  filter(Experiment == "Rob_WE") %>%
+  filter(grepl("E", Plot)) %>%
+  group_by(Plot, StateVar, Treatment) %>%
+  # Keep the last measurement to correspond to the model
+  slice_max(time) %>%
+  ungroup() %>%
+  # Group by blocks
+  full_join(
+    tibble(Plot = paste0("E", 1:60),
+           Block = rep(1:15, each = 4))
+  ) %>%
+  filter(!(Block %in% c(12,15))) %>%
+  select(-time, -Experiment, -Plot) %>%
+  pivot_wider(names_from = Treatment, values_from = Biomass) %>%
+  # Select only measured independent variables
+  filter(StateVar %in% c("M", "N", "P")) %>% 
+  # Calculate effects
+  mutate(IE = (HW - H - W + N)) %>%
+  mutate(WE = (W - N), HE = (H - N)) %>% 
+  mutate(IEpred = WE + HE, IEacc = HW - N) %>%
+  # Put the data in the format for plotting
+  select(-W, -N, -HW, -H)
+
 # Clean up the data
 data3 = data2 %>% 
   select(-PARS, -YSTABLE, -Run2) %>% # clean out extra data: parameters, stability
@@ -75,15 +101,51 @@ out1 = runID %>%
   select(-fit) %>%
   mutate(Best = ifelse(is.na(Best),"No", Best))
 
+
+out1_temp = out1 %>% 
+  filter(Best == "Yes") %>% 
+  select(-Best, -IEacc, -IEpred) %>% 
+  gather(-Run, -StateVar, key = Effect, value = value) %>%
+  mutate(Type = "Best model") %>%
+  # Add full model predictions
+  bind_rows(
+    out1 %>%
+      select(-Best, -IEacc, -IEpred) %>%
+      gather(-Run, -StateVar, key = Effect, value = value) %>%
+      mutate(Type = "All model")
+  ) %>%
+  # Add in the experimental data
+  bind_rows(
+    datatomodel2 %>%
+      select(-IEacc, -IEpred) %>%
+      pivot_longer(IE:HE,names_to = "Effect") %>%
+      rename(Run = Block) %>%
+      mutate(Run = paste(Run), Type = "Data")
+  ) %>%
+  # Log transform the y-axis, but retain the sign
+  mutate(value2 = sign(value)*log((abs(value)+1)))
+
 # Plot for the best fitting parameter sets only
 png(paste0("modelresults_",Sys.Date(),"/interactioneffect.png"), width = 8, height = 5, units = "in", res = 600)
-out1 %>% filter(Best == "Yes") %>% select(-Best, -IEacc, -IEpred) %>% gather(-Run, -StateVar, key = Effect, value = value) %>%
-  mutate(value = 100*abs(value) + 1e-6) %>%
-  ggplot(aes(x = Effect, y = value, fill = Effect)) + geom_boxplot(alpha = 0.7) + theme_classic() + 
-  facet_wrap(.~StateVar,labeller=labeller(StateVar = variable_names)) +
-  scale_y_log10(name = "Effect magnitude", labels = scientific) + 
+out1_temp %>%
+  ggplot(aes(x = Effect, y = value2, fill = Type)) + geom_boxplot(alpha = 0.7) + theme_classic() + 
+  facet_wrap(.~StateVar,labeller=labeller(StateVar = variable_names), scales = "free") +
+  scale_y_continuous(name = "Effect magnitude") +
   scale_x_discrete(limits = c("HE", "WE", "IE")) + 
-  scale_fill_manual(values = c("blue", "orange", "grey"), limits = c("HE", "WE", "IE"), labels = c("Grasshopper (HE)", "Earthworm (WE)", "Interaction (IE)"), name = "Effect") +
+  theme(legend.position = c(1, 0),
+        legend.justification = c(1, 0),
+        legend.box = "horizontal")
+dev.off()
+
+png(paste0("modelresults_",Sys.Date(),"/interactioneffect2.png"), width = 8, height = 5, units = "in", res = 600)
+out1_temp %>%
+  filter(Type != "All model") %>%
+  ggplot(aes(x = Effect, y = value, fill = Type)) +
+  geom_hline(yintercept = 0, linetype= 2) + 
+  geom_boxplot(alpha = 0.7) + theme_classic() + 
+  facet_wrap(.~StateVar,labeller=labeller(StateVar = variable_names), scales = "free") +
+  scale_y_continuous(name = "Effect magnitude") +
+  scale_x_discrete(limits = c("HE", "WE", "IE")) + 
   theme(legend.position = c(1, 0),
         legend.justification = c(1, 0),
         legend.box = "horizontal")
