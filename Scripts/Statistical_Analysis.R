@@ -86,7 +86,7 @@ write_rds(pbdata, "Data/pbdata.rds")
 # ... 1.0.3 Plot the outputs by treatment ----
 
 pbdata_temp = tibble(
-  Treatment = factor(c("Control", "Grasshopper", "Earthworm", "G & H", "Biomass Ctrl","Biomass Ctrl","Biomass Ctrl"), levels = c("Control", "Biomass Ctrl", "Grasshopper", "Earthworm", "G & H")),
+  Treatment = factor(c("Control", "Grasshopper", "Earthworm", "G & W", "Biomass Ctrl","Biomass Ctrl","Biomass Ctrl"), levels = c("Control", "Biomass Ctrl", "Grasshopper", "Earthworm", "G & W")),
   HopperAdd = c("Remove", "Add", "Remove", "Add", "Frozen", "Remove", "Frozen"),
   Addition = as.factor(c("Remove", "Remove", "Add", "Add", "Frozen", "Frozen", "Remove"))
 ) %>%
