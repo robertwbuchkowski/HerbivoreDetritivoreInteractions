@@ -151,6 +151,26 @@ out1_temp %>%
         legend.box = "horizontal")
 dev.off()
 
+png(paste0("modelresults_",Sys.Date(),"/interactioneffect3.png"), width = 8, height = 5, units = "in", res = 600)
+out1_temp %>%
+  filter(Type != "All model") %>%
+  left_join(
+    tibble(Type = c("Best model", "Data"),
+           Source = c("Model", "Data"))
+  ) %>%
+  filter(StateVar == "P") %>%
+  ggplot(aes(x = Effect, y = value, fill = Source)) +
+  geom_hline(yintercept = 0, linetype= 2) + 
+  geom_boxplot(alpha = 0.7) + theme_classic() +
+  scale_y_continuous(name = "Effect on plant biomass") +
+  scale_x_discrete(breaks = c("HE", "WE", "IE"),
+                   labels = c("Grasshopper effect", "Earthworm effect", "Interaciton Effect")) + 
+  scale_fill_manual(values = c("blue", "orange")) + 
+  theme(legend.position = c(1, 0),
+        legend.justification = c(1, 0),
+        legend.box = "horizontal")
+dev.off()
+
 png(paste0("modelresults_",Sys.Date(),"/interactioneffect_all.png"), width = 8, height = 5, units = "in", res = 600)
 out1 %>% select(-Best, -IEacc, -IEpred) %>% gather(-Run, -StateVar, key = Effect, value = value) %>%
   mutate(value = 100*abs(value) + 1e-6) %>%
