@@ -151,7 +151,7 @@ out1_temp %>%
         legend.box = "horizontal")
 dev.off()
 
-png(paste0("modelresults_",Sys.Date(),"/interactioneffect3.png"), width = 8, height = 5, units = "in", res = 600)
+png(paste0("modelresults_",Sys.Date(),"/interactioneffect3.png"), width = 5, height = 3, units = "in", res = 600)
 out1_temp %>%
   filter(Type != "All model") %>%
   left_join(
