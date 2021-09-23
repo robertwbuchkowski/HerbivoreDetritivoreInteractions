@@ -9,8 +9,14 @@ library(tidyverse) # version 1.2.1
 
 verbose = F
 
-# Run the extract_data_model_analysis.R script to clean up the raw data and generate a data set that can be used to compare the model and data
-source("Scripts/extract_data_model_analysis.R")
+# Load in the various data sets
+wormdata2 <- read_rds("Data/wormdata2.rds")
+pbdata <- read_rds("Data/pbdata.rds")
+RDAdata <- read_rds("Data/RDAdata.rds")
+wormWE <- read_rds("Data/wormWE.rds")
+RDAWdata <- read_rds("Data/RDAWdata.rds")
+SOAL2017 <- read_rds("Data/SOAL2017.rds")
+pbdataWE <- read_rds("Data/pbdataWE.rds")
 
 # 1.0 Experiment Analysis ----
 # .... 1.0.1 Explore CH4 worm data ----
@@ -81,7 +87,7 @@ RDAdata = RDAdata %>% rename(Earthworm_old = Earthworm, AP_N_old = AP_N) %>%
 pbdata %>% ggplot(aes(x = WORM_N_old, y = WORM_N, shape=Year, color = Addition)) + geom_point(size = 2) + theme_classic() + xlab("Earthworm (#)") + ylab("Earthworm (residuals)") + scale_color_manual(name = "Earthworm Treatment", values = c("#E69F00", "#56B4E9", "#009E73")) + scale_shape_discrete(labels= c("2017", "2018"))
 
 # .... Export pbdata to RDS file for using in other code sections
-write_rds(pbdata, "Data/pbdata.rds")
+write_rds(pbdata, "Data/pbdata_modified.rds")
 
 # ... 1.0.3 Plot the outputs by treatment ----
 

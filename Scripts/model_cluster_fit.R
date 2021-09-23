@@ -6,41 +6,12 @@
 
 require(tidyverse) # version 1.2.1
 verbose = F # Do you want extra graphs and analyses?
-loadcsv = F # Do you need to load the raw inputs from a cluster, if true you will need to run new model simulations, otherwise you can just load the ones provided.
 
 # Load in the data from field experiments -----
 
 datatomodel2 = read_csv("Data/datatomodel2.csv")
 
 # Load (Cluster) data -----
-
-if(loadcsv){ # Only important if you are loading in data from the raw outputs of "complex_model_non-eqm_to_cluster.R" It would need to be modified for the specific directory on your machine
-  
-  dirtoload = "Model_noneqm_Jun2020/"
-  
-  ftoload = list.files(dirtoload)
-  
-  listOfDataFrames <- vector(mode = "list", length = length(ftoload))
-  
-  for(ii in 1:length(ftoload)){
-    listOfDataFrames[[ii]] <- read.csv(paste0(dirtoload,ftoload[ii]))
-  }
-  
-  data2 <- do.call("rbind", listOfDataFrames)
-  
-  rm(listOfDataFrames,ftoload)
-  
-  
-  data2$Run = paste0(data2$Run, data2$Run2)
-  
-  # check for duplicate Run names and replace them
-  table(data2$Run)[table(data2$Run) != 160]
-  
-  # Get rid of RUNS without full list
-  data2 = data2 %>% filter(!(Run %in% c("138385645710656", "2071216147931349", "5029548420248414", "5777566158453009", "7718466888195712")))
-
-  saveRDS(data2, file = paste0("Data/fullmodeloutput_",Sys.Date(),".rds"))
-}
 
 # The following .rds file was created by using the function "rbind" to join individual model outputs
 data2 <- readRDS("Data/fullmodeloutput_2020-06-22.rds")
