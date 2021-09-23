@@ -151,6 +151,20 @@ out1_temp %>%
         legend.box = "horizontal")
 dev.off()
 
+pdf("figure_5.pdf", width = 8, height = 5)
+out1_temp %>%
+  filter(Type != "All model") %>%
+  ggplot(aes(x = Effect, y = value, fill = Type)) +
+  geom_hline(yintercept = 0, linetype= 2) + 
+  geom_boxplot(alpha = 0.7) + theme_classic() + 
+  facet_wrap(.~StateVar,labeller=labeller(StateVar = variable_names), scales = "free") +
+  scale_y_continuous(name = "Effect magnitude") +
+  scale_x_discrete(limits = c("HE", "WE", "IE")) + 
+  theme(legend.position = c(1, 0),
+        legend.justification = c(1, 0),
+        legend.box = "horizontal")
+dev.off()
+
 png(paste0("modelresults_",Sys.Date(),"/interactioneffect3.png"), width = 5, height = 3, units = "in", res = 600)
 out1_temp %>%
   filter(Type != "All model") %>%

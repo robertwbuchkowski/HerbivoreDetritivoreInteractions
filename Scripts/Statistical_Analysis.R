@@ -117,6 +117,22 @@ ggpubr::ggarrange(
 )
 dev.off()
 
+pdf("figure_2.pdf", width=9, height=6)
+ggpubr::ggarrange(
+  pbdata_temp %>%
+    ggplot(aes(x = Treatment, y = PlantBiomass, color = Year)) + geom_boxplot()  + theme_classic() + ylab("Aboveground plant biomass") + theme(legend.position = "none"),
+  
+  pbdata_temp %>%
+    ggplot(aes(x = Treatment, y = NTs, color = Year)) + geom_boxplot() + theme_classic() + ylab("Field N mineralization") + theme(legend.position = c(0.1, 0.8)),
+  
+  pbdata_temp %>%
+    ggplot(aes(x = Treatment, y = NTm, color = Year)) + geom_boxplot() + theme_classic() + ylab("Lab N mineralization") + theme(legend.position = "none"),
+  
+  pbdata_temp %>%
+    ggplot(aes(x = Treatment, y = SIR, color = Year)) + geom_boxplot() + theme_classic() + theme(legend.position = "none")
+)
+dev.off()
+
 # .. 1.1 Linear models --------------------
 
 # A function that runs the different linear models with and without interactions
@@ -376,6 +392,8 @@ anova.cca(rda1, by="margin", step=1000)
 # Get the proportion of variation explained
 (prop_explained = round(rda1$CCA$eig/rda1$tot.chi*100,1))
 
+
+pdf("figure_4.pdf", width=7, height=7)
 # Plot the RDA: Figure 4 in the main text
 plot(rda1, type="n", xlab=paste0("RDA1 (", prop_explained[1],"%)"), ylab=paste0("RDA2 (", prop_explained[2],"%)"))
 points(rda1, display= "sites", choices=c(1,2), scaling=2, cex=0.5, col="grey",pch=ifelse(RDAdata$Year=="17", 19, 17))
@@ -403,6 +421,7 @@ par(fig=c(0.47,0.94,0.6,0.882)) # fig shrinks and places relative to figure regi
 plot(0,0, pch=3,type="p", col="grey", xlab="", ylab="", xlim=c(-0.11, 0.09), ylim=c(-0.03, 0.07),xaxt='n',yaxt='n')
 abline(h=0, lty = 3); abline(v=0, lty=3)
 text(rda1, display= "sp", choices=c(1,2), scaling=2, cex=0.45, col="red")
+dev.off()
 
 # .. 1.3 Run Path Analysis (Structural equation models [SEM]) ----
 
