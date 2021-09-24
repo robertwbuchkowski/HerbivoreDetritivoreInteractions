@@ -162,7 +162,8 @@ out1_temp %>%
   scale_x_discrete(limits = c("HE", "WE", "IE")) + 
   theme(legend.position = c(1, 0),
         legend.justification = c(1, 0),
-        legend.box = "horizontal")
+        legend.box = "horizontal",
+        axis.ticks.length=unit(-0.2, "cm"))
 dev.off()
 
 png(paste0("modelresults_",Sys.Date(),"/interactioneffect3.png"), width = 5, height = 3, units = "in", res = 600)

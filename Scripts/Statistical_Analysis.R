@@ -104,32 +104,48 @@ pbdata_temp = tibble(
 jpeg(paste0("Figure2_",Sys.Date(), ".jpeg"), units="in", width=9, height=6, res=600)
 ggpubr::ggarrange(
   pbdata_temp %>%
-    ggplot(aes(x = Treatment, y = PlantBiomass, color = Year)) + geom_boxplot()  + theme_classic() + ylab("Aboveground plant biomass") + theme(legend.position = "none"),
+    ggplot(aes(x = Treatment, y = PlantBiomass, color = Year)) + geom_boxplot()  + theme_classic() + ylab("Aboveground plant biomass") + 
+    theme(legend.position = "none",
+          axis.ticks.length=unit(-0.2, "cm")),
   
   pbdata_temp %>%
-    ggplot(aes(x = Treatment, y = NTs, color = Year)) + geom_boxplot() + theme_classic() + ylab("Field N mineralization") + theme(legend.position = c(0.1, 0.8)),
+    ggplot(aes(x = Treatment, y = NTs, color = Year)) + geom_boxplot() + theme_classic() + ylab("Field N mineralization") + 
+    theme(legend.position = c(0.1, 0.8),
+          axis.ticks.length=unit(-0.2, "cm")),
   
   pbdata_temp %>%
-    ggplot(aes(x = Treatment, y = NTm, color = Year)) + geom_boxplot() + theme_classic() + ylab("Lab N mineralization") + theme(legend.position = "none"),
+    ggplot(aes(x = Treatment, y = NTm, color = Year)) + geom_boxplot() + theme_classic() + ylab("Lab N mineralization")  + 
+    theme(legend.position = "none",
+          axis.ticks.length=unit(-0.2, "cm")),
   
   pbdata_temp %>%
-    ggplot(aes(x = Treatment, y = SIR, color = Year)) + geom_boxplot() + theme_classic() + theme(legend.position = "none")
+    ggplot(aes(x = Treatment, y = SIR, color = Year)) + geom_boxplot() + theme_classic()  + 
+    theme(legend.position = "none",
+          axis.ticks.length=unit(-0.2, "cm"))
 )
 dev.off()
 
 pdf("figure_2.pdf", width=9, height=6)
 ggpubr::ggarrange(
   pbdata_temp %>%
-    ggplot(aes(x = Treatment, y = PlantBiomass, color = Year)) + geom_boxplot()  + theme_classic() + ylab("Aboveground plant biomass") + theme(legend.position = "none"),
+    ggplot(aes(x = Treatment, y = PlantBiomass, color = Year)) + geom_boxplot()  + theme_classic() + ylab("Aboveground plant biomass") + 
+    theme(legend.position = "none",
+          axis.ticks.length=unit(-0.2, "cm")),
   
   pbdata_temp %>%
-    ggplot(aes(x = Treatment, y = NTs, color = Year)) + geom_boxplot() + theme_classic() + ylab("Field N mineralization") + theme(legend.position = c(0.1, 0.8)),
+    ggplot(aes(x = Treatment, y = NTs, color = Year)) + geom_boxplot() + theme_classic() + ylab("Field N mineralization") + 
+    theme(legend.position = c(0.1, 0.8),
+          axis.ticks.length=unit(-0.2, "cm")),
   
   pbdata_temp %>%
-    ggplot(aes(x = Treatment, y = NTm, color = Year)) + geom_boxplot() + theme_classic() + ylab("Lab N mineralization") + theme(legend.position = "none"),
+    ggplot(aes(x = Treatment, y = NTm, color = Year)) + geom_boxplot() + theme_classic() + ylab("Lab N mineralization")  + 
+    theme(legend.position = "none",
+          axis.ticks.length=unit(-0.2, "cm")),
   
   pbdata_temp %>%
-    ggplot(aes(x = Treatment, y = SIR, color = Year)) + geom_boxplot() + theme_classic() + theme(legend.position = "none")
+    ggplot(aes(x = Treatment, y = SIR, color = Year)) + geom_boxplot() + theme_classic()  + 
+    theme(legend.position = "none",
+          axis.ticks.length=unit(-0.2, "cm"))
 )
 dev.off()
 
@@ -395,7 +411,7 @@ anova.cca(rda1, by="margin", step=1000)
 
 pdf("figure_4.pdf", width=7, height=7)
 # Plot the RDA: Figure 4 in the main text
-plot(rda1, type="n", xlab=paste0("RDA1 (", prop_explained[1],"%)"), ylab=paste0("RDA2 (", prop_explained[2],"%)"))
+plot(rda1, type="n", xlab=paste0("RDA1 (", prop_explained[1],"%)"), ylab=paste0("RDA2 (", prop_explained[2],"%)"), tck = 0.02)
 points(rda1, display= "sites", choices=c(1,2), scaling=2, cex=0.5, col="grey",pch=ifelse(RDAdata$Year=="17", 19, 17))
 ordiellipse(rda1, groups=RDAdata$Year,col= alpha(c("black", "grey40"), 0.7), lwd=3, label=F)
 
