@@ -1,5 +1,6 @@
 # Model for the cluster
 
+require(tidyverse)
 require(deSolve) # version 1.21
 
 # How many replicates do you want to run in this code file?
