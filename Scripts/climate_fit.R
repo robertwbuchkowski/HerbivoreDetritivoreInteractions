@@ -31,7 +31,7 @@ cd = cd %>%
 cd %>% ggplot(aes(x = doy, y = MEAN_TEMPERATURE)) + geom_point()
 
 cd = cd %>% filter(doy != 366) %>%
-  mutate(MEAN_TEMPERATURE = MEAN_TEMPERATURE + 274.15)
+  mutate(MEAN_TEMPERATURE = MEAN_TEMPERATURE + 273.15)
 
 # Function for Connecticut:
 # -12.8244*cos(2*3.14/365*doy-0.3666)+281.9846
@@ -42,7 +42,7 @@ m1
 
 LTtemp = function(doy){
   
-  -12.7084*cos(2*3.14/365*doy-0.3758)+282.8291
+  -12.7084*cos(2*3.14/365*doy-0.3758)+281.8291
   
 }
 
