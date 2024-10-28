@@ -47,4 +47,4 @@ LTtemp = function(doy){
 }
 
 cd %>%
-  mutate(tf = LTtemp(doy)) %>% ggplot(aes(x = doy, y = MEAN_TEMPERATURE)) + geom_point() + geom_line(aes(y = tf))
+  mutate(tf = LTtemp(doy)) %>% ggplot(aes(x = doy, y = MEAN_TEMPERATURE)) + geom_point() + geom_line(aes(y = tf), color = "red")

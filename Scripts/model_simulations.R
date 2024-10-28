@@ -1,13 +1,7 @@
 # Model for the cluster
 
-require(tidyverse)
-require(deSolve) # version 1.21
-
-# How many replicates do you want to run in this code file?
-NTOT = 100
-
-# How many years do you want to simulate the experiments?
-simyear = 5
+require(tidyverse) # version 2.0.0
+require(deSolve) # version 1.40
 
 # Load in the required functions ----
 
@@ -39,9 +33,9 @@ singlemodel <-function(t, y,pars){
     Klm = exp(Kslope*tempC + Kint)*Klm_mod
     Ksm = exp(Kslope*tempC + Kint)*Ksm_mod
     
-    dL = tp*P*P + (1-SUEh)*A_W*Vhp*H*P + th*H*H + tw*W*W - Vlm*L*M/(Klm + M) - A_W*Vlw*L*W - l*L
+    dL = tp*P*P + (1-SUEh)*A_W*Vhp*H*P + th*H*H + tw*W*W + tr*R*R - Vlm*L*M/(Klm + M) - A_W*Vlw*L*W - A_W*Vlr*L*R - l*L
     
-    dM = SUE*(Vlm*L*M/(Klm + M) + Vsm*S*M/(Ksm + M)) - tm*M - SUEwm*A_W*Vsw*W*M
+    dM = SUE*(Vlm*L*M/(Klm + M) + Vsm*S*M/(Ksm + M)) - tm*M - SUEwm*A_W*Vsw*W*M - SUErm*A_W*R*Vsr*M
     
     dW = SUEwl*A_W*Vlw*L*W + SUEws*A_W*Vsw*S*W + SUEwm*A_W*W*Vsw*M - tw*W*W
     
@@ -49,7 +43,7 @@ singlemodel <-function(t, y,pars){
     
     dN = IN - q*N - fi*N + fo*S + (1-SUE)*(Vlm*L*M/(Klm + M) + Vsm*S*M/(Ksm + M)) - A_P*Vpf*N*P/(Kpf+N)
     
-    dS = tm*M + (1-SUEwl)*A_W*Vlw*L*W - Vsm*S*M/(Ksm + M) - SUEws*A_W*Vsw*S*W + fi*N - fo*S
+    dS = tm*M + (1-SUEwl)*A_W*Vlw*L*W - Vsm*S*M/(Ksm + M) - SUEws*A_W*Vsw*S*W + fi*N - fo*S + (1-SUErl)*A_W*Vlr*L*R
     
     dP = A_P*Vpf*N*P/(Kpf+N) - tp*P*P - A_W*Vhp*H*P
     
@@ -63,6 +57,7 @@ singlemodel <-function(t, y,pars){
   )
 }
 
+# Load in the parameters:
 source("Scripts/parameters.R")
 
 # Add the isopods (R) to the yint vector:
@@ -73,9 +68,12 @@ params = c(params, c(Vlr =2.400000e-06, Vsr = 4.100000e-05, SUErl = 2e-02, SUErm
 
 # Simulate to produce a stable equilibrium for the new temperature values in the model:
 
-yts = 2000
+yts = 2000 # Years to simulate
 
-stablerun = ode(y=yint,times = seq(1, 365*yts,1), func=singlemodel, parms=params)
+stablerun = ode(y=yint, # starting values
+                times = seq(1, 365*yts,1), # Times to simulate
+                func=singlemodel, # Function to simulate
+                parms=params) # Model parameters
 
 # Check to make sure the equilibrium is stable!
 if(dim(stablerun)[1] == 365*yts){
@@ -84,10 +82,12 @@ if(dim(stablerun)[1] == 365*yts){
   ERRRRR = max(abs(stablerun[(365*yts),-1] - stablerun[(365*(yts-1)),-1])) > 1e-4
 } ; print(ERRRRR) # Needs to be FALSE!
 
+# Plot the final 10 years of simulation:
 stablerun %>% data.frame() %>% tibble() %>%
   filter(time > 365*1990) %>%
   pivot_longer(!time) %>% ggplot(aes(x = time, y = value)) + geom_line() + facet_wrap(~name, scales = "free_y")
 
+# New stable biomass for ESW:
 ystable
 
 # Simulate the litter removal and addition treatments:
@@ -162,4 +162,3 @@ output %>%
   pivot_longer(contains("change")) %>%
   ggplot(aes(x = time, y = value, color = name)) + geom_line() + facet_wrap(~namefull, scales = "free_y") + ylab("Change (%)") + xlab("Days of simulation") +
   geom_vline(xintercept = c(685, 685 + 365), linetype = 2)
-  
