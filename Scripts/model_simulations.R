@@ -150,7 +150,8 @@ output = litter_removal_sim %>% data.frame() %>% tibble() %>%
 
 # Plot the raw simulations:
 output %>%
-  ggplot(aes(x = time, y = value, color = Treatment)) + geom_line() + facet_wrap(~namefull, scales = "free_y")
+  ggplot(aes(x = time, y = value, color = Treatment)) + geom_line() + facet_wrap(~namefull, scales = "free_y")  +
+  geom_vline(xintercept = c(685, 685 + 365), linetype = 2)
 
 # Plot the treatment percent change:
 output %>%
